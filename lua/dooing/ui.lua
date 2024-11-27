@@ -359,6 +359,7 @@ local function create_search_window()
 			end, { buffer = search_buf_id, nowait = true })
 		else -- Close the window if no query was entered
 			vim.api.nvim_win_close(search_win_id, true)
+      vim.api.nvim_set_current_win(win_id)
 			search_win_id = nil
 			search_buf_id = nil
 		end
