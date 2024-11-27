@@ -110,4 +110,17 @@ function M.delete_tag(tag)
 	save_todos()
 end
 
+function M.search_todos(query)
+	local results = {}
+	query = query:lower()
+
+	for index, todo in ipairs(M.todos) do
+		if todo.text:lower():find(query) then
+			table.insert(results, { index = index, todo = todo })
+		end
+	end
+
+	return results
+end
+
 return M

@@ -30,6 +30,7 @@ M.defaults = {
 		edit_todo = "e",
 		edit_tag = "e",
 		delete_tag = "d",
+		search_todos = "/",
 	},
 }
 

@@ -40,6 +40,10 @@ local help_buf_id = nil
 local tag_win_id = nil
 ---@type integer|nil
 local tag_buf_id = nil
+---@type integer|nil
+local search_win_id = nil
+---@type integer|nil
+local search_buf_id = nil
 
 -- Forward declare local functions that are used in keymaps
 local create_help_window
@@ -135,6 +139,7 @@ create_help_window = function()
 		" t     - Toggle tags window",
 		" e     - Edit to-do item",
 		" c     - Clear active tag filter",
+		" /     - Search todos",
 		" ",
 		" Tags window:",
 		" e     - Edit tag",
@@ -265,6 +270,97 @@ create_tag_window = function()
 	end, { buffer = tag_buf_id })
 end
 
+-- Search for todos
+local function create_search_window()
+	if search_win_id and vim.api.nvim_win_is_valid(search_win_id) then
+		vim.api.nvim_win_close(search_win_id, true)
+		search_win_id = nil
+		search_buf_id = nil
+		return
+	end
+
+	-- Create search results buffer
+	search_buf_id = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_option(search_buf_id, "buflisted", true)
+	vim.api.nvim_buf_set_option(search_buf_id, "modifiable", false)
+	vim.api.nvim_buf_set_option(search_buf_id, "filetype", "todo_search")
+
+	local width = 40
+	local height = 10
+	local ui = vim.api.nvim_list_uis()[1]
+	local main_width = 40
+	local main_col = math.floor((ui.width - main_width) / 2)
+	local col = main_col - width - 2
+	local row = math.floor((ui.height - height) / 2)
+
+	search_win_id = vim.api.nvim_open_win(search_buf_id, true, {
+		relative = "editor",
+		row = row,
+		col = col,
+		width = width,
+		height = height,
+		style = "minimal",
+		border = "rounded",
+		title = " Search Todos ",
+		title_pos = "center",
+	})
+
+	vim.ui.input({ prompt = "Search todos: " }, function(query)
+		if query and query ~= "" then
+			local results = state.search_todos(query)
+
+			vim.api.nvim_buf_set_option(search_buf_id, "modifiable", true)
+
+			local lines = { "Search Results for: " .. query, "" }
+			local valid_lines = {} -- Store valid todo lines
+
+			if #results > 0 then
+				for _, result in ipairs(results) do
+					local icon = result.todo.done and "✓" or "○"
+					local line = string.format("  %s %s", icon, result.todo.text)
+					table.insert(lines, line)
+					table.insert(valid_lines, #lines) -- Track valid lines
+				end
+			else
+				table.insert(lines, "  No results found")
+			end
+			vim.api.nvim_buf_set_lines(search_buf_id, 0, -1, false, lines)
+			vim.api.nvim_buf_set_option(search_buf_id, "modifiable", false)
+
+			for i, line in ipairs(lines) do
+				if line:match("^%s+[○✓]") then
+					local hl_group = line:match("✓") and "DooingDone" or "DooingPending"
+					vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, hl_group, i - 1, 0, -1)
+
+					for tag in line:gmatch("#(%w+)") do
+						local start_idx = line:find("#" .. tag) - 1
+						vim.api.nvim_buf_add_highlight(
+							search_buf_id,
+							ns_id,
+							"Type",
+							i - 1,
+							start_idx,
+							start_idx + #tag + 1
+						)
+					end
+				elseif line:match("Search Results") then
+					vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, "WarningMsg", i - 1, 0, -1)
+				end
+			end
+
+			vim.keymap.set("n", "q", function()
+				vim.api.nvim_win_close(search_win_id, true)
+				search_win_id = nil
+				search_buf_id = nil
+			end, { buffer = search_buf_id, nowait = true })
+		else -- Close the window if no query was entered
+			vim.api.nvim_win_close(search_win_id, true)
+			search_win_id = nil
+			search_buf_id = nil
+		end
+	end)
+end
+
 -- Creates and configures the main todo window
 local function create_window()
 	local ui = vim.api.nvim_list_uis()[1]
@@ -309,6 +405,7 @@ local function create_window()
 	set_conditional_keymap("toggle_help", create_help_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("toggle_tags", create_tag_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("edit_todo", edit_todo, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("search_todos", create_search_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("clear_filter", function()
 		state.set_filter(nil)
 		M.render_todos()
