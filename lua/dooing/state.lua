@@ -116,7 +116,7 @@ function M.search_todos(query)
 
 	for index, todo in ipairs(M.todos) do
 		if todo.text:lower():find(query) then
-			table.insert(results, { index = index, todo = todo })
+			table.insert(results, { lnum = index, todo = todo })
 		end
 	end
 
