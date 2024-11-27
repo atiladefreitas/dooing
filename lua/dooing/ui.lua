@@ -442,12 +442,18 @@ function M.new_todo()
 
 				-- Create a buffer for priority selection
 				local select_buf = vim.api.nvim_create_buf(false, true)
+				local ui = vim.api.nvim_list_uis()[1]
+				local width = 40
+				local height = #priority_options + 2
+				local row = math.floor((ui.height - height) / 2)
+				local col = math.floor((ui.width - width) / 2)
+
 				local select_win = vim.api.nvim_open_win(select_buf, true, {
 					relative = "editor",
-					width = 40,
-					height = #priority_options + 2,
-					row = 3,
-					col = 10,
+					width = width,
+					height = height,
+					row = row,
+					col = col,
 					style = "minimal",
 					border = "rounded",
 					title = " Select Priorities ",
