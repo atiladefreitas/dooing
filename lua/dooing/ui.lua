@@ -434,36 +434,68 @@ function M.new_todo()
 			if config.options.prioritization then
 				local priorities = config.options.priorities
 				local priority_options = {}
+				local selected_priorities = {}
 
 				for i, priority in ipairs(priorities) do
-					priority_options[i] = string.format("%d. %s %s", i, priority.icon, priority.name)
+					priority_options[i] = string.format("[ ] %d. %s %s", i, priority.icon, priority.name)
 				end
 
-				vim.ui.select(priority_options, {
-					prompt = "Select priority level",
-					kind = "dooing_priority",
-					format_item = function(item)
-						return item
-					end,
-					telescope_theme = {
-						layout_config = {
-							width = 0.3,
-							height = 0.2,
-						},
-						highlights = {
-							["1. 🔥 important and urgent"] = { link = "DiagnosticError" },
-							["2. ⭐ important and not urgent"] = { link = "DiagnosticWarn" },
-							["3. ⏰ not important and urgent"] = { link = "DiagnosticInfo" },
-							["4. 📝 not important and not urgent"] = { link = "DiagnosticHint" },
-						},
-					},
-				}, function(choice, idx)
-					if not idx then
-						return
+				-- Create a buffer for priority selection
+				local select_buf = vim.api.nvim_create_buf(false, true)
+				local select_win = vim.api.nvim_open_win(select_buf, true, {
+					relative = "editor",
+					width = 40,
+					height = #priority_options + 2,
+					row = 3,
+					col = 10,
+					style = "minimal",
+					border = "rounded",
+					title = " Select Priorities ",
+					title_pos = "center",
+					footer = " <Space>: toggle | <Enter>: confirm ",
+					footer_pos = "center",
+				})
+
+				-- Set buffer content
+				vim.api.nvim_buf_set_lines(select_buf, 0, -1, false, priority_options)
+				vim.api.nvim_buf_set_option(select_buf, "modifiable", false)
+
+				-- Add keymaps for selection
+				vim.keymap.set("n", "<Space>", function()
+					local cursor = vim.api.nvim_win_get_cursor(select_win)
+					local line_num = cursor[1]
+					local current_line = vim.api.nvim_buf_get_lines(select_buf, line_num - 1, line_num, false)[1]
+
+					vim.api.nvim_buf_set_option(select_buf, "modifiable", true)
+					if current_line:match("^%[%s%]") then
+						-- Select item
+						local new_line = current_line:gsub("^%[%s%]", "[x]")
+						selected_priorities[line_num] = true
+						vim.api.nvim_buf_set_lines(select_buf, line_num - 1, line_num, false, { new_line })
+					else
+						-- Deselect item
+						local new_line = current_line:gsub("^%[x%]", "[ ]")
+						selected_priorities[line_num] = nil
+						vim.api.nvim_buf_set_lines(select_buf, line_num - 1, line_num, false, { new_line })
+					end
+					vim.api.nvim_buf_set_option(select_buf, "modifiable", false)
+				end, { buffer = select_buf, nowait = true })
+
+				-- Add keymap for confirmation
+				vim.keymap.set("n", "<CR>", function()
+					local selected_indices = {}
+					for idx, _ in pairs(selected_priorities) do
+						table.insert(selected_indices, idx)
 					end
 
-					state.add_todo(input, idx)
-					M.render_todos()
+					if #selected_indices > 0 then
+						-- Close selection window
+						vim.api.nvim_win_close(select_win, true)
+
+						-- Add todo with multiple priorities
+						state.add_todo(input, selected_indices)
+						M.render_todos()
+					end
 
 					-- Position cursor logic...
 					local total_lines = vim.api.nvim_buf_line_count(buf_id)
