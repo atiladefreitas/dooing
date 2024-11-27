@@ -270,13 +270,100 @@ create_tag_window = function()
 	end, { buffer = tag_buf_id })
 end
 
--- Search for todos
-local function create_search_window()
-	if search_win_id and vim.api.nvim_win_is_valid(search_win_id) then
+-- Handle search queries
+local function handle_search_query(query)
+	if not query or query == "" then
+		if search_win_id and vim.api.nvim_win_is_valid(search_win_id) then
+			vim.api.nvim_win_close(search_win_id, true)
+			vim.api.nvim_set_current_win(win_id)
+			search_win_id = nil
+			search_buf_id = nil
+		end
+		return
+	end
+
+	-- Prepare the search results
+	local results = state.search_todos(query)
+	vim.api.nvim_buf_set_option(search_buf_id, "modifiable", true)
+	local lines = { "Search Results for: " .. query, "" }
+	local valid_lines = {} -- Store valid todo lines
+	if #results > 0 then
+		for _, result in ipairs(results) do
+			local icon = result.todo.done and "✓" or "○"
+			local line = string.format("  %s %s", icon, result.todo.text)
+			table.insert(lines, line)
+			table.insert(valid_lines, { line_index = #lines, result = result })
+		end
+	else
+		table.insert(lines, "  No results found")
+		vim.api.nvim_set_current_win(win_id)
+	end
+
+	-- Add search results to window
+	vim.api.nvim_buf_set_lines(search_buf_id, 0, -1, false, lines)
+
+	-- After adding search results, make it unmodifiable
+	vim.api.nvim_buf_set_option(search_buf_id, "modifiable", false)
+
+	-- Highlight todos on search results
+	for i, line in ipairs(lines) do
+		if line:match("^%s+[○✓]") then
+			local hl_group = line:match("✓") and "DooingDone" or "DooingPending"
+			vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, hl_group, i - 1, 0, -1)
+			for tag in line:gmatch("#(%w+)") do
+				local start_idx = line:find("#" .. tag) - 1
+				vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, "Type", i - 1, start_idx, start_idx + #tag + 1)
+			end
+		elseif line:match("Search Results") then
+			vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, "WarningMsg", i - 1, 0, -1)
+		end
+	end
+
+	-- Close search window
+	vim.keymap.set("n", "q", function()
 		vim.api.nvim_win_close(search_win_id, true)
 		search_win_id = nil
 		search_buf_id = nil
+		if win_id and vim.api.nvim_win_is_valid(win_id) then
+			vim.api.nvim_set_current_win(win_id)
+		end
+	end, { buffer = search_buf_id, nowait = true })
+
+	-- Jump to todo in main window
+	vim.keymap.set("n", "<CR>", function()
+		local current_line = vim.api.nvim_win_get_cursor(search_win_id)[1]
+		local matched_result = nil
+		for _, item in ipairs(valid_lines) do
+			if item.line_index == current_line then
+				matched_result = item.result
+				break
+			end
+		end
+		if matched_result then
+			vim.api.nvim_win_close(search_win_id, true)
+			search_win_id = nil
+			search_buf_id = nil
+			vim.api.nvim_set_current_win(win_id)
+			vim.api.nvim_win_set_cursor(win_id, { matched_result.lnum + 1, 3 })
+		end
+	end, { buffer = search_buf_id, nowait = true })
+end
+
+-- Search for todos
+local function create_search_window()
+	-- If search window exists and is valid, focus on the existing window and return
+	if search_win_id and vim.api.nvim_win_is_valid(search_win_id) then
+		vim.api.nvim_set_current_win(search_win_id)
+		vim.ui.input({ prompt = "Search todos: " }, function(query)
+			handle_search_query(query)
+		end)
 		return
+	end
+
+	-- If search window exists but is not valid, reset IDs
+	if search_win_id and vim.api.nvim_win_is_valid(search_win_id) then
+		search_win_id = nil
+		search_buf_id = nil
 	end
 
 	-- Create search results buffer
@@ -305,78 +392,20 @@ local function create_search_window()
 
 	-- Create search query pane
 	vim.ui.input({ prompt = "Search todos: " }, function(query)
-		if query and query ~= "" then
-			local results = state.search_todos(query)
-			vim.api.nvim_buf_set_option(search_buf_id, "modifiable", true)
-			local lines = { "Search Results for: " .. query, "" }
-			local valid_lines = {} -- Store valid todo lines
-			if #results > 0 then
-				for _, result in ipairs(results) do
-					local icon = result.todo.done and "✓" or "○"
-					local line = string.format("  %s %s", icon, result.todo.text)
-					table.insert(lines, line)
-					table.insert(valid_lines, { line_index = #lines, result = result }) -- Track valid lines and data
-				end
-			else
-				table.insert(lines, "  No results found")
-			end
-			vim.api.nvim_buf_set_lines(search_buf_id, 0, -1, false, lines)
-			vim.api.nvim_buf_set_option(search_buf_id, "modifiable", false)
-			for i, line in ipairs(lines) do
-				if line:match("^%s+[○✓]") then
-					local hl_group = line:match("✓") and "DooingDone" or "DooingPending"
-					vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, hl_group, i - 1, 0, -1)
-					for tag in line:gmatch("#(%w+)") do
-						local start_idx = line:find("#" .. tag) - 1
-						vim.api.nvim_buf_add_highlight(
-							search_buf_id,
-							ns_id,
-							"Type",
-							i - 1,
-							start_idx,
-							start_idx + #tag + 1
-						)
-					end
-				elseif line:match("Search Results") then
-					vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, "WarningMsg", i - 1, 0, -1)
-				end
-			end
+		handle_search_query(query)
+	end)
 
-			-- Close search window
-			vim.keymap.set("n", "q", function()
+  -- Close the search window if main window is closed
+	vim.api.nvim_create_autocmd("WinClosed", {
+		pattern = tostring(win_id),
+		callback = function()
+			if search_win_id and vim.api.nvim_win_is_valid(search_win_id) then
 				vim.api.nvim_win_close(search_win_id, true)
 				search_win_id = nil
 				search_buf_id = nil
-				if win_id and vim.api.nvim_win_is_valid(win_id) then
-					vim.api.nvim_set_current_win(win_id)
-				end
-			end, { buffer = search_buf_id, nowait = true })
-
-			-- Jump to todo in main window
-			vim.keymap.set("n", "<CR>", function()
-				local current_line = vim.api.nvim_win_get_cursor(search_win_id)[1]
-				local matched_result = nil
-				for _, item in ipairs(valid_lines) do
-					if item.line_index == current_line then
-						matched_result = item.result
-						break
-					end
-				end
-				if matched_result then
-					vim.api.nvim_win_close(search_win_id, true)
-					search_win_id = nil
-					search_buf_id = nil
-					vim.api.nvim_set_current_win(win_id)
-					vim.api.nvim_win_set_cursor(win_id, { matched_result.lnum + 1, 3 })
-				end
-			end, { buffer = search_buf_id, nowait = true })
-		else -- Close the window if no query was entered
-			vim.api.nvim_win_close(search_win_id, true)
-			vim.api.nvim_set_current_win(win_id)
-			search_win_id = nil
-			search_buf_id = nil
-		end
-	end)
+			end
+		end,
+	})
 end
 
 -- Creates and configures the main todo window
