@@ -57,10 +57,10 @@ local function setup_highlights()
 	vim.api.nvim_set_hl(0, "DooingHelpText", { link = "Directory", default = true })
 
 	if config.options.prioritization then
-		local priorities = config.options.priorities
-		for _, priority in ipairs(priorities) do
-			vim.api.nvim_set_hl(0, priority.color, { link = priority.hl_group, default = true })
-		end
+		-- local priorities = config.options.priorities
+		-- for _, priority in ipairs(priorities) do
+		-- 	vim.api.nvim_set_hl(0, priority.color, { link = priority.hl_group, default = true })
+		-- end
 	end
 end
 
@@ -382,9 +382,9 @@ function M.render_todos()
 				else
 					-- If prioritization is enabled and todo has priority, use priority color
 					-- Otherwise use the default pending highlight
-					local hl_group = config.options.prioritization and todo.priority and priorities[todo.priority].color
-						or "DooingPending"
-					vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
+					-- local hl_group = config.options.prioritization and todo.priority and priorities[todo.priority].color
+					-- or "DooingPending"
+					-- vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
 				end
 
 				-- Highlight tags
