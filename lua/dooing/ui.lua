@@ -349,9 +349,15 @@ function M.render_todos()
 			local priority_icon = ""
 			local text = todo.text
 
-			-- Only add priority icon if prioritization is enabled and todo has priority
-			if config.options.prioritization and todo.priority and priorities[todo.priority] then
-				priority_icon = priorities[todo.priority].icon .. " "
+			-- Add threshold icon if prioritization is enabled
+			if config.options.prioritization and todo.priority then
+				local score = state.get_priority_score(todo)
+				for _, threshold in ipairs(config.options.priority_thresholds) do
+					if score >= threshold.min and score <= threshold.max and threshold.icon then
+						priority_icon = threshold.icon .. " "
+						break
+					end
+				end
 			end
 
 			if todo.done then
