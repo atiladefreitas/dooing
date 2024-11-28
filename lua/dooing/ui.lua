@@ -457,7 +457,7 @@ function M.new_todo()
 				local selected_priorities = {}
 
 				for i, priority in ipairs(priorities) do
-					priority_options[i] = string.format("[ ] %d. %s %s", i, priority.icon, priority.name)
+					priority_options[i] = string.format("[ ] %s", priority.name)
 				end
 
 				-- Create a buffer for priority selection
@@ -518,14 +518,13 @@ function M.new_todo()
 						end
 					end
 
-					if #selected_priority_names > 0 then
-						-- Close selection window
-						vim.api.nvim_win_close(select_win, true)
+					-- Close selection window
+					vim.api.nvim_win_close(select_win, true)
 
-						-- Add todo with priority names
-						state.add_todo(input, selected_priority_names)
-						M.render_todos()
-					end
+					-- Add todo with priority names (or nil if none selected)
+					local priorities_to_add = #selected_priority_names > 0 and selected_priority_names or nil
+					state.add_todo(input, priorities_to_add)
+					M.render_todos()
 
 					-- Position cursor logic...
 					local total_lines = vim.api.nvim_buf_line_count(buf_id)
