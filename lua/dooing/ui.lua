@@ -398,16 +398,23 @@ function M.render_todos()
 					end
 
 					if threshold then
-						-- If color is a hex value, create a new highlight group
-						if threshold.color:match("^#") then
+						local hl_group = "DooingPending"
+
+						-- If color is defined and is a valid hex value
+						if
+							threshold.color
+							and type(threshold.color) == "string"
+							and threshold.color:match("^#%x%x%x%x%x%x$")
+						then
 							local hl_name = "Dooing" .. threshold.color:gsub("#", "")
 							vim.api.nvim_set_hl(0, hl_name, { fg = threshold.color })
-							vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_name, i - 1, 0, -1)
-						-- Otherwise use the specified highlight group or fall back to DooingPending
-						else
-							local hl_group = threshold.hl_group or "DooingPending"
-							vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
+							hl_group = hl_name
+						-- If hl_group is defined, use it
+						elseif threshold.hl_group then
+							hl_group = threshold.hl_group
 						end
+
+						vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
 					else
 						vim.api.nvim_buf_add_highlight(buf_id, ns_id, "DooingPending", i - 1, 0, -1)
 					end
