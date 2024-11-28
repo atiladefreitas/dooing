@@ -173,7 +173,7 @@ create_help_window = function()
 	end
 
 	vim.keymap.set("n", config.options.keymaps.close_window, close_help, { buffer = help_buf_id, nowait = true })
-	vim.keymap.set("n", config.options.keymaps.toggle_help, close_help, { buffer = buf_id, nowait = true })
+	vim.keymap.set("n", config.options.keymaps.toggle_help, close_help, { buffer = help_buf_id, nowait = true })
 end
 
 -- Creates and manages the tags window
