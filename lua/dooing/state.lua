@@ -28,13 +28,13 @@ function M.load_todos()
 	end
 end
 
-function M.add_todo(text, priority_index)
+function M.add_todo(text, priority_names)
 	table.insert(M.todos, {
 		text = text,
 		done = false,
 		category = text:match("#(%w+)") or "",
 		created_at = os.time(),
-		priority = priority_index,
+		priority = priority_names,
 	})
 	save_todos()
 end

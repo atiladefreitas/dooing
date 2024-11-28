@@ -489,17 +489,21 @@ function M.new_todo()
 
 				-- Add keymap for confirmation
 				vim.keymap.set("n", "<CR>", function()
-					local selected_indices = {}
+					local selected_priority_names = {}
 					for idx, _ in pairs(selected_priorities) do
-						table.insert(selected_indices, idx)
+						-- Get the priority name from the config using the index
+						local priority = config.options.priorities[idx]
+						if priority then
+							table.insert(selected_priority_names, priority.name)
+						end
 					end
 
-					if #selected_indices > 0 then
+					if #selected_priority_names > 0 then
 						-- Close selection window
 						vim.api.nvim_win_close(select_win, true)
 
-						-- Add todo with multiple priorities
-						state.add_todo(input, selected_indices)
+						-- Add todo with priority names
+						state.add_todo(input, selected_priority_names)
 						M.render_todos()
 					end
 
