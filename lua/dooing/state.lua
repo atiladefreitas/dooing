@@ -86,7 +86,7 @@ end
 
 -- Calculate priority score for a todo item
 function M.get_priority_score(todo)
-	if not todo.priority or not config.options.prioritization then
+	if not todo.priority or not config.options.prioritization or todo.done then
 		return 0
 	end
 
