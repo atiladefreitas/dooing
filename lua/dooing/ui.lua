@@ -380,11 +380,31 @@ function M.render_todos()
 				if todo.done then
 					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "DooingDone", i - 1, 0, -1)
 				else
-					-- If prioritization is enabled and todo has priority, use priority color
-					-- Otherwise use the default pending highlight
-					-- local hl_group = config.options.prioritization and todo.priority and priorities[todo.priority].color
-					-- or "DooingPending"
-					-- vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
+					-- Calculate priority score and find matching threshold
+					local score = state.get_priority_score(todo)
+					local threshold = nil
+
+					for _, t in ipairs(config.options.priority_thresholds) do
+						if score >= t.min and score <= t.max then
+							threshold = t
+							break
+						end
+					end
+
+					if threshold then
+						-- If color is a hex value, create a new highlight group
+						if threshold.color:match("^#") then
+							local hl_name = "Dooing" .. threshold.color:gsub("#", "")
+							vim.api.nvim_set_hl(0, hl_name, { fg = threshold.color })
+							vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_name, i - 1, 0, -1)
+						-- Otherwise use the specified highlight group or fall back to DooingPending
+						else
+							local hl_group = threshold.hl_group or "DooingPending"
+							vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
+						end
+					else
+						vim.api.nvim_buf_add_highlight(buf_id, ns_id, "DooingPending", i - 1, 0, -1)
+					end
 				end
 
 				-- Highlight tags

@@ -84,34 +84,35 @@ function M.delete_completed()
 	save_todos()
 end
 
+-- Calculate priority score for a todo item
+function M.get_priority_score(todo)
+	if not todo.priority or not config.options.prioritization then
+		return 0
+	end
+
+	-- Create a lookup table for valid priorities and their weights
+	local priority_weights = {}
+	for _, p in ipairs(config.options.priorities) do
+		priority_weights[p.name] = p.weight or 1 -- Default weight of 1 if not specified
+	end
+
+	local score = 0
+	for _, priority_name in ipairs(todo.priority) do
+		-- Only count priorities that are defined in config
+		local weight = priority_weights[priority_name]
+		if weight then
+			score = score + weight
+		end
+	end
+	return score
+end
+
 function M.sort_todos()
 	table.sort(M.todos, function(a, b)
 		-- If prioritization is enabled, sort by priority first
 		if config.options.prioritization then
-			-- Create a lookup table for valid priorities and their weights
-			local priority_weights = {}
-			for _, p in ipairs(config.options.priorities) do
-				priority_weights[p.name] = p.weight or 1 -- Default weight of 1 if not specified
-			end
-
-			-- Calculate priority scores
-			local function get_priority_score(todo)
-				if not todo.priority then
-					return 0
-				end
-				local score = 0
-				for _, priority_name in ipairs(todo.priority) do
-					-- Only count priorities that are defined in config
-					local weight = priority_weights[priority_name]
-					if weight then
-						score = score + weight
-					end
-				end
-				return score
-			end
-
-			local a_score = get_priority_score(a)
-			local b_score = get_priority_score(b)
+			local a_score = M.get_priority_score(a)
+			local b_score = M.get_priority_score(b)
 
 			if a_score ~= b_score then
 				return a_score > b_score -- Higher score = higher priority

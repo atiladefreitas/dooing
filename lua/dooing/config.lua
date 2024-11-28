@@ -21,17 +21,41 @@ M.defaults = {
 	priorities = {
 		{
 			name = "important",
-			-- color = "DooingPriorityImportant",
-			icon = "★",
-			-- hl_group = "DiagnosticWarn",
 			weight = 4,
 		},
 		{
 			name = "urgent",
-			-- color = "DooingPriorityUrgent",
-			icon = "⚡",
-			-- hl_group = "DiagnosticInfo",
 			weight = 2,
+		},
+	},
+	priority_thresholds = {
+		{
+			min = 5,
+			max = 999,
+			color = "DooingPriorityHigh",
+			icon = "🔴",
+			hl_group = "DiagnosticError",
+		},
+		{
+			min = 3,
+			max = 4,
+			color = "DooingPriorityMedium",
+			icon = "🟡",
+			hl_group = "DiagnosticWarn",
+		},
+		{
+			min = 1,
+			max = 2,
+			color = "DooingPriorityLow",
+			icon = "🟢",
+			hl_group = "DiagnosticInfo",
+		},
+		{
+			min = 0,
+			max = 0,
+			color = "DooingPriorityNone",
+			icon = "⚪",
+			hl_group = "DiagnosticHint",
 		},
 	},
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
