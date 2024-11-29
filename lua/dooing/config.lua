@@ -33,29 +33,19 @@ M.defaults = {
 			min = 5, -- Corresponds to `urgent` and `important` tasks
 			max = 999,
 			color = nil,
-			icon = "",
 			hl_group = "DiagnosticError",
 		},
 		{
 			min = 3, -- Corresponds to `important` tasks
 			max = 4,
 			color = nil,
-			icon = "",
 			hl_group = "DiagnosticWarn",
 		},
 		{
 			min = 1, -- Corresponds to `urgent tasks`
 			max = 2,
 			color = nil,
-			icon = "",
 			hl_group = "DiagnosticInfo",
-		},
-		{
-			min = 0,
-			max = 0,
-			color = nil,
-			icon = "⚪",
-			hl_group = "DiagnosticHint",
 		},
 	},
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",

@@ -405,7 +405,7 @@ local function create_search_window()
 		handle_search_query(query)
 	end)
 
-  -- Close the search window if main window is closed
+	-- Close the search window if main window is closed
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(win_id),
 		callback = function()
@@ -490,25 +490,14 @@ function M.render_todos()
 	for _, todo in ipairs(state.todos) do
 		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
 			local check_icon = todo.done and "✓" or "○"
-			local priority_icon = ""
-			local text = todo.text
 
-			-- Add threshold icon if prioritization is enabled
-			if config.options.prioritization and todo.priority then
-				local score = state.get_priority_score(todo)
-				for _, threshold in ipairs(config.options.priority_thresholds) do
-					if score >= threshold.min and score <= threshold.max and threshold.icon then
-						priority_icon = threshold.icon .. " "
-						break
-					end
-				end
-			end
+			local text = todo.text
 
 			if todo.done then
 				text = "~" .. text .. "~"
 			end
 
-			table.insert(lines, "  " .. check_icon .. " " .. priority_icon .. text)
+			table.insert(lines, "  " .. check_icon .. " " .. text)
 		end
 	end
 
