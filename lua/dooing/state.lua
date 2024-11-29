@@ -223,7 +223,8 @@ function M.get_priority_score(todo)
 		ect_multiplier = 1 / (todo.estimated_hours * config.options.hour_score_value)
 	end
 
-	return ect_multiplier * score + offset
+	-- Apply multiplier to total score (base score + offset)
+	return (score + offset) * ect_multiplier
 end
 
 function M.sort_todos()
@@ -241,11 +242,6 @@ function M.sort_todos()
 		-- Then sort by completion status
 		if a.done ~= b.done then
 			return not a.done -- Undone items come first
-		end
-
-		-- Then sort by estimated time (shorter tasks first)
-		if a.estimated_hours and b.estimated_hours and a.estimated_hours ~= b.estimated_hours then
-			return a.estimated_hours < b.estimated_hours
 		end
 
 		-- Finally sort by creation time
