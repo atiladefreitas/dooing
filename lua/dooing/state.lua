@@ -47,6 +47,7 @@ function M.add_todo(text, priority_names)
 		category = text:match("#(%w+)") or "",
 		created_at = os.time(),
 		priority = priority_names,
+		estimated_hours = nil, -- Add estimated_hours field
 	})
 	save_todos()
 end
@@ -125,6 +126,31 @@ function M.remove_due_date(index)
 	return false
 end
 
+-- Add estimated completion time to a todo
+function M.add_time_estimation(index, hours)
+	if not M.todos[index] then
+		return false, "Todo not found"
+	end
+
+	if type(hours) ~= "number" or hours < 0 then
+		return false, "Invalid time estimation"
+	end
+
+	M.todos[index].estimated_hours = hours
+	M.save_todos()
+	return true
+end
+
+-- Remove estimated completion time from a todo
+function M.remove_time_estimation(index)
+	if M.todos[index] then
+		M.todos[index].estimated_hours = nil
+		M.save_todos()
+		return true
+	end
+	return false
+end
+
 function M.get_all_tags()
 	local tags = {}
 	local seen = {}
@@ -197,6 +223,11 @@ function M.sort_todos()
 		-- Then sort by completion status
 		if a.done ~= b.done then
 			return not a.done -- Undone items come first
+		end
+
+		-- Then sort by estimated time (shorter tasks first)
+		if a.estimated_hours and b.estimated_hours and a.estimated_hours ~= b.estimated_hours then
+			return a.estimated_hours < b.estimated_hours
 		end
 
 		-- Finally sort by creation time

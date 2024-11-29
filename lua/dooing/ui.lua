@@ -174,6 +174,8 @@ create_help_window = function()
 		" x     - Toggle to-do status",
 		" h     - Add due date to to-do ",
 		" r     - Remove to-do due date",
+		" T     - Add time estimation",
+		" R     - Remove time estimation",
 		" d     - Delete current to-do",
 		" D     - Delete all completed todos",
 		" ?     - Toggle this help window",
@@ -450,6 +452,67 @@ local function create_search_window()
 	})
 end
 
+-- Parse time estimation string (e.g., "2h", "1d", "0.5w")
+local function parse_time_estimation(time_str)
+	local number, unit = time_str:match("^(%d+%.?%d*)([hdw])$")
+
+	if not (number and unit) then
+		return nil, "Invalid format. Use number followed by h (hours), d (days), or w (weeks). E.g., 2h, 1d, 0.5w"
+	end
+
+	local hours = tonumber(number)
+	if not hours then
+		return nil, "Invalid number format"
+	end
+
+	-- Convert to hours
+	if unit == "d" then
+		hours = hours * 24
+	elseif unit == "w" then
+		hours = hours * 24 * 7
+	end
+
+	return hours
+end
+
+-- Add estimated completion time to todo
+local function add_time_estimation()
+	local current_line = vim.api.nvim_win_get_cursor(0)[1]
+	local todo_index = current_line - (state.active_filter and 3 or 1)
+
+	vim.ui.input({
+		prompt = "Estimated completion time (e.g., 2h, 1d, 0.5w): ",
+		default = "",
+	}, function(input)
+		if input and input ~= "" then
+			local hours, err = parse_time_estimation(input)
+			if hours then
+				state.todos[todo_index].estimated_hours = hours
+				state.save_todos()
+				vim.notify("Time estimation added successfully", vim.log.levels.INFO)
+				M.render_todos()
+			else
+				vim.notify("Error adding time estimation: " .. (err or "Unknown error"), vim.log.levels.ERROR)
+			end
+		end
+	end)
+end
+
+-- Remove estimated completion time from todo
+local function remove_time_estimation()
+	local current_line = vim.api.nvim_win_get_cursor(0)[1]
+	local todo_index = current_line - (state.active_filter and 3 or 1)
+
+	if state.todos[todo_index] then
+		state.todos[todo_index].estimated_hours = nil
+		state.save_todos()
+		vim.notify("Time estimation removed successfully", vim.log.levels.INFO)
+		M.render_todos()
+	else
+		vim.notify("Error removing time estimation", vim.log.levels.ERROR)
+	end
+end
+
 -- Add due date to to-do in the format MM/DD/YYYY
 -- In ui.lua, update the add_due_date function
 local function add_due_date()
@@ -533,6 +596,8 @@ local function create_window()
 	set_conditional_keymap("edit_todo", edit_todo, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("add_due_date", add_due_date, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("remove_due_date", remove_due_date, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("add_time_estimation", add_time_estimation, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("remove_time_estimation", remove_time_estimation, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("search_todos", create_search_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("clear_filter", function()
 		state.set_filter(nil)
@@ -584,11 +649,23 @@ function M.render_todos()
 				end
 			end
 
+			-- Format time estimation if exists
+			local time_str = ""
+			if todo.estimated_hours then
+				if todo.estimated_hours >= 168 then -- more than a week
+					time_str = string.format(" [≈ %.1fw]", todo.estimated_hours / 168)
+				elseif todo.estimated_hours >= 24 then -- more than a day
+					time_str = string.format(" [≈ %.1fd]", todo.estimated_hours / 24)
+				else
+					time_str = string.format(" [≈ %.1fh]", todo.estimated_hours)
+				end
+			end
+
 			if todo.done then
 				text = "~" .. text .. "~"
 			end
 
-			table.insert(lines, "  " .. check_icon .. " " .. text .. due_date_str)
+			table.insert(lines, "  " .. check_icon .. " " .. text .. due_date_str .. time_str)
 		end
 	end
 
