@@ -116,32 +116,43 @@ function M.setup(opts)
 
 			if field == "priority" then
 				-- Handle priority setting
-				local priority_list = vim.split(value, ",", { trimempty = true })
-				local valid_priorities = {}
-				local invalid_priorities = {}
+				if value == "nil" then
+					-- Clear priorities
+					state.todos[index].priorities = nil
+					state.save_todos()
+					vim.notify("Cleared priorities for todo " .. index, vim.log.levels.INFO)
+				else
+					-- Handle priority setting
+					local priority_list = vim.split(value, ",", { trimempty = true })
+					local valid_priorities = {}
+					local invalid_priorities = {}
 
-				for _, p in ipairs(priority_list) do
-					local is_valid = false
-					for _, config_p in ipairs(config.options.priorities) do
-						if p == config_p.name then
-							is_valid = true
-							table.insert(valid_priorities, p)
-							break
+					for _, p in ipairs(priority_list) do
+						local is_valid = false
+						for _, config_p in ipairs(config.options.priorities) do
+							if p == config_p.name then
+								is_valid = true
+								table.insert(valid_priorities, p)
+								break
+							end
+						end
+						if not is_valid then
+							table.insert(invalid_priorities, p)
 						end
 					end
-					if not is_valid then
-						table.insert(invalid_priorities, p)
+
+					if #invalid_priorities > 0 then
+						vim.notify(
+							"Invalid priorities: " .. table.concat(invalid_priorities, ", "),
+							vim.log.levels.WARN
+						)
 					end
-				end
 
-				if #invalid_priorities > 0 then
-					vim.notify("Invalid priorities: " .. table.concat(invalid_priorities, ", "), vim.log.levels.WARN)
-				end
-
-				if #valid_priorities > 0 then
-					state.todos[index].priorities = valid_priorities
-					state.save_todos()
-					vim.notify("Updated priorities for todo " .. index, vim.log.levels.INFO)
+					if #valid_priorities > 0 then
+						state.todos[index].priorities = valid_priorities
+						state.save_todos()
+						vim.notify("Updated priorities for todo " .. index, vim.log.levels.INFO)
+					end
 				end
 			elseif field == "ect" then
 				-- Handle estimated completion time setting
@@ -167,7 +178,7 @@ function M.setup(opts)
 			if #args <= 2 then
 				return { "add", "list", "set" }
 			elseif args[1] == "set" and #args == 3 then
-				return { "priority", "ect" }
+				return { "priority", "priorities", "ect" }
 			elseif args[1] == "set" and args[3] == "priority" then
 				local priorities = {}
 				for _, p in ipairs(config.options.priorities) do
