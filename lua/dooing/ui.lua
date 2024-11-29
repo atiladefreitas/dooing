@@ -22,10 +22,12 @@ local state = require("dooing.state")
 local config = require("dooing.config")
 
 --------------------------------------------------
--- Local Variables
+-- Local Variables and Cache
 --------------------------------------------------
 -- Namespace for highlighting
 local ns_id = vim.api.nvim_create_namespace("dooing")
+-- Cache for highlight groups
+local highlight_cache = {}
 
 -- Window and buffer IDs
 ---@type integer|nil
@@ -56,16 +58,43 @@ local edit_todo
 -- Set up highlights
 
 local function setup_highlights()
+	-- Clear highlight cache
+	highlight_cache = {}
+
+	-- Set up base highlights
 	vim.api.nvim_set_hl(0, "DooingPending", { link = "Question", default = true })
 	vim.api.nvim_set_hl(0, "DooingDone", { link = "Comment", default = true })
 	vim.api.nvim_set_hl(0, "DooingHelpText", { link = "Directory", default = true })
 
-	if config.options.prioritization then
-		-- local priorities = config.options.priorities
-		-- for _, priority in ipairs(priorities) do
-		-- 	vim.api.nvim_set_hl(0, priority.color, { link = priority.hl_group, default = true })
-		-- end
+	-- Cache the base highlight groups
+	highlight_cache.pending = "DooingPending"
+	highlight_cache.done = "DooingDone"
+	highlight_cache.help = "DooingHelpText"
+end
+
+-- Get or create highlight group for a threshold
+local function get_threshold_highlight(threshold)
+	if not threshold then
+		return highlight_cache.pending
 	end
+
+	local cache_key = threshold.color or threshold.hl_group
+	if highlight_cache[cache_key] then
+		return highlight_cache[cache_key]
+	end
+
+	local hl_group = highlight_cache.pending
+
+	if threshold.color and type(threshold.color) == "string" and threshold.color:match("^#%x%x%x%x%x%x$") then
+		local hl_name = "Dooing" .. threshold.color:gsub("#", "")
+		api.nvim_set_hl(0, hl_name, { fg = threshold.color })
+		hl_group = hl_name
+	elseif threshold.hl_group then
+		hl_group = threshold.hl_group
+	end
+
+	highlight_cache[cache_key] = hl_group
+	return hl_group
 end
 
 --------------------------------------------------
@@ -529,28 +558,8 @@ function M.render_todos()
 							break
 						end
 					end
-
-					if threshold then
-						local hl_group = "DooingPending"
-
-						-- If color is defined and is a valid hex value
-						if
-							threshold.color
-							and type(threshold.color) == "string"
-							and threshold.color:match("^#%x%x%x%x%x%x$")
-						then
-							local hl_name = "Dooing" .. threshold.color:gsub("#", "")
-							vim.api.nvim_set_hl(0, hl_name, { fg = threshold.color })
-							hl_group = hl_name
-						-- If hl_group is defined, use it
-						elseif threshold.hl_group then
-							hl_group = threshold.hl_group
-						end
-
-						vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
-					else
-						vim.api.nvim_buf_add_highlight(buf_id, ns_id, "DooingPending", i - 1, 0, -1)
-					end
+					local hl_group = get_threshold_highlight(threshold)
+					vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
 				end
 
 				-- Highlight tags
