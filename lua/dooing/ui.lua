@@ -816,7 +816,6 @@ function M.toggle_todo()
 	end
 end
 
--- Deletes the current todo item
 function M.delete_todo()
 	local cursor = vim.api.nvim_win_get_cursor(win_id)
 	local todo_index = cursor[1] - 1
@@ -829,15 +828,16 @@ function M.delete_todo()
 				if todo.text:match("#" .. state.active_filter) then
 					visible_index = visible_index + 1
 					if visible_index == todo_index - 2 then
-						state.delete_todo(i)
+						todo_index = i
 						break
 					end
 				end
 			end
-		else
-			state.delete_todo(todo_index)
 		end
-		M.render_todos()
+
+		state.delete_todo_with_confirmation(todo_index, win_id, calendar, function()
+			M.render_todos()
+		end)
 	end
 end
 

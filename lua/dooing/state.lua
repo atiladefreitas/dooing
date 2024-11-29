@@ -229,4 +229,219 @@ function M.search_todos(query)
 	return results
 end
 
+-- Helper function to get the priority-based highlights
+local function get_priority_highlights(todo)
+	if not config.options.prioritization then
+		return "DooingPending"
+	end
+
+	local score = M.get_priority_score(todo)
+	for _, threshold in ipairs(config.options.priority_thresholds) do
+		if score >= threshold.min and score <= threshold.max then
+			return threshold.hl_group
+		end
+	end
+	return "DooingPending"
+end
+
+-- Delete todo with confirmation for incomplete items
+function M.delete_todo_with_confirmation(todo_index, win_id, calendar, callback)
+	local current_todo = M.todos[todo_index]
+	if not current_todo then
+		return
+	end
+
+	-- If todo is completed, delete without confirmation
+	if current_todo.done then
+		M.delete_todo(todo_index)
+		if callback then
+			callback()
+		end
+		return
+	end
+
+	-- Create confirmation buffer
+	local confirm_buf = vim.api.nvim_create_buf(false, true)
+
+	-- Format todo text with due date
+	local todo_display_text = "   ○ " .. current_todo.text
+	local lang = calendar.get_language()
+	lang = calendar.MONTH_NAMES[lang] and lang or "en"
+
+	if current_todo.due_at then
+		local date = os.date("*t", current_todo.due_at)
+		local month = calendar.MONTH_NAMES[lang][date.month]
+
+		local formatted_date
+		if lang == "pt" then
+			formatted_date = string.format("%d de %s de %d", date.day, month, date.year)
+		else
+			formatted_date = string.format("%s %d, %d", month, date.day, date.year)
+		end
+		todo_display_text = todo_display_text .. " [@ " .. formatted_date .. "]"
+
+		-- Add overdue status if applicable
+		if current_todo.due_at < os.time() then
+			todo_display_text = todo_display_text .. " [OVERDUE]"
+		end
+	end
+
+	local lines = {
+		"",
+		"",
+		todo_display_text,
+		"",
+		"",
+		"",
+	}
+
+	-- Set buffer content
+	vim.api.nvim_buf_set_lines(confirm_buf, 0, -1, false, lines)
+	vim.api.nvim_buf_set_option(confirm_buf, "modifiable", false)
+	vim.api.nvim_buf_set_option(confirm_buf, "buftype", "nofile")
+
+	-- Calculate window dimensions
+	local ui = vim.api.nvim_list_uis()[1]
+	local width = 60
+	local height = #lines
+	local row = math.floor((ui.height - height) / 2)
+	local col = math.floor((ui.width - width) / 2)
+
+	-- Create confirmation window
+	local confirm_win = vim.api.nvim_open_win(confirm_buf, true, {
+		relative = "editor",
+		row = row,
+		col = col,
+		width = width,
+		height = height,
+		style = "minimal",
+		border = "rounded",
+		title = " Delete incomplete todo? ",
+		title_pos = "center",
+		footer = " [Y]es - [N]o ",
+		footer_pos = "center",
+		noautocmd = true,
+	})
+
+	-- Window options
+	vim.api.nvim_win_set_option(confirm_win, "cursorline", false)
+	vim.api.nvim_win_set_option(confirm_win, "cursorcolumn", false)
+	vim.api.nvim_win_set_option(confirm_win, "number", false)
+	vim.api.nvim_win_set_option(confirm_win, "relativenumber", false)
+	vim.api.nvim_win_set_option(confirm_win, "signcolumn", "no")
+	vim.api.nvim_win_set_option(confirm_win, "mousemoveevent", false)
+
+	-- Add highlights
+	local ns = vim.api.nvim_create_namespace("dooing_confirm")
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "WarningMsg", 0, 0, -1)
+
+	local main_hl = get_priority_highlights(current_todo)
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, main_hl, 2, 0, #todo_display_text)
+
+	-- Tag highlights
+	for tag in current_todo.text:gmatch("#(%w+)") do
+		local start_idx = todo_display_text:find("#" .. tag)
+		if start_idx then
+			vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Type", 2, start_idx - 1, start_idx + #tag)
+		end
+	end
+
+	-- Due date highlight
+	if current_todo.due_at then
+		local due_date_start = todo_display_text:find("%[@")
+		local overdue_start = todo_display_text:find("%[OVERDUE%]")
+
+		if due_date_start then
+			vim.api.nvim_buf_add_highlight(
+				confirm_buf,
+				ns,
+				"Comment",
+				2,
+				due_date_start - 1,
+				overdue_start and overdue_start - 1 or -1
+			)
+		end
+
+		if overdue_start then
+			vim.api.nvim_buf_add_highlight(confirm_buf, ns, "ErrorMsg", 2, overdue_start - 1, -1)
+		end
+	end
+
+	-- Options highlights
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Question", 4, 1, 2)
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Normal", 4, 0, 1)
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Normal", 4, 2, 5)
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Normal", 4, 5, 9)
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Question", 4, 10, 11)
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Normal", 4, 9, 10)
+	vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Normal", 4, 11, 12)
+
+	-- Prevent cursor movement
+	local movement_keys = {
+		"h",
+		"j",
+		"k",
+		"l",
+		"<Up>",
+		"<Down>",
+		"<Left>",
+		"<Right>",
+		"<C-f>",
+		"<C-b>",
+		"<C-u>",
+		"<C-d>",
+		"w",
+		"b",
+		"e",
+		"ge",
+		"0",
+		"$",
+		"^",
+		"gg",
+		"G",
+	}
+
+	local opts = { buffer = confirm_buf, nowait = true }
+	for _, key in ipairs(movement_keys) do
+		vim.keymap.set("n", key, function() end, opts)
+	end
+
+	-- Close confirmation window
+	local function close_confirm()
+		if vim.api.nvim_win_is_valid(confirm_win) then
+			vim.api.nvim_win_close(confirm_win, true)
+			vim.api.nvim_set_current_win(win_id)
+		end
+	end
+
+	-- Handle responses
+	vim.keymap.set("n", "y", function()
+		close_confirm()
+		M.delete_todo(todo_index)
+		if callback then
+			callback()
+		end
+	end, opts)
+
+	vim.keymap.set("n", "Y", function()
+		close_confirm()
+		M.delete_todo(todo_index)
+		if callback then
+			callback()
+		end
+	end, opts)
+
+	vim.keymap.set("n", "n", close_confirm, opts)
+	vim.keymap.set("n", "N", close_confirm, opts)
+	vim.keymap.set("n", "q", close_confirm, opts)
+	vim.keymap.set("n", "<Esc>", close_confirm, opts)
+
+	-- Auto-close on buffer leave
+	vim.api.nvim_create_autocmd("BufLeave", {
+		buffer = confirm_buf,
+		callback = close_confirm,
+		once = true,
+	})
+end
+
 return M
