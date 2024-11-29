@@ -17,7 +17,6 @@ M.defaults = {
 		pending = "○",
 		done = "✓",
 	},
-	prioritization = false,
 	priorities = {
 		{
 			name = "important",

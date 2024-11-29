@@ -553,7 +553,6 @@ function M.render_todos()
 
 	local lines = { "" }
 	state.sort_todos()
-	local priorities = config.options.priorities
 
 	local lang = calendar and calendar.get_language()
 	lang = calendar.MONTH_NAMES[lang] and lang or "en"
@@ -682,8 +681,8 @@ end
 function M.new_todo()
 	vim.ui.input({ prompt = "New to-do: " }, function(input)
 		if input and input ~= "" then
-			-- Check if prioritization is enabled
-			if config.options.prioritization then
+			-- Check if priorities are configured
+			if config.options.priorities and #config.options.priorities > 0 then
 				local priorities = config.options.priorities
 				local priority_options = {}
 				local selected_priorities = {}

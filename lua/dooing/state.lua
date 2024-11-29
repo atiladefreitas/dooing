@@ -165,7 +165,7 @@ end
 
 -- Calculate priority score for a todo item
 function M.get_priority_score(todo)
-	if not todo.priority or not config.options.prioritization or todo.done then
+	if not todo.priority or not config.options.priorities or #config.options.priorities == 0 or todo.done then
 		return 0
 	end
 
@@ -178,8 +178,8 @@ end
 
 function M.sort_todos()
 	table.sort(M.todos, function(a, b)
-		-- If prioritization is enabled, sort by priority first
-		if config.options.prioritization then
+		-- If priorities are configured, sort by priority first
+		if config.options.priorities and #config.options.priorities > 0 then
 			local a_score = M.get_priority_score(a)
 			local b_score = M.get_priority_score(b)
 
