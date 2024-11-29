@@ -112,6 +112,7 @@ Dooing comes with sensible defaults that you can override:
 		},
 	},
 
+    -- Calendar settings
     calendar = {
         language = "en",             -- Calendar language ("en" or "pt")
         keymaps = {
