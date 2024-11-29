@@ -42,9 +42,7 @@ Run the following commands in Neovim to install Dooing:
 ```
 
 ### Default Configuration
-
 Dooing comes with sensible defaults that you can override:
-
 ```lua
 {
     -- Core settings
@@ -61,8 +59,8 @@ Dooing comes with sensible defaults that you can override:
     icons = {
         pending = '○',      -- Pending todo icon
         done = '✓',        -- Completed todo icon
-    }
-
+    },
+    
     -- Keymaps
     keymaps = {
         toggle_window = "<leader>td", -- Toggle the main window
@@ -71,6 +69,8 @@ Dooing comes with sensible defaults that you can override:
         delete_todo = "d",           -- Delete the current todo
         delete_completed = "D",      -- Delete all completed todos
         close_window = "q",          -- Close the window
+        add_due_date = "h",          -- Add due date to todo
+        remove_due_date = "r",       -- Remove due date from todo
         toggle_help = "?",           -- Toggle help window
         toggle_tags = "t",           -- Toggle tags window
         clear_filter = "c",          -- Clear active tag filter
@@ -81,7 +81,6 @@ Dooing comes with sensible defaults that you can override:
     },
 
     prioritization = false,
-
 	priorities = {                   -- Defines priorities one can assign to tasks
 		{
 			name = "important",
@@ -112,10 +111,22 @@ Dooing comes with sensible defaults that you can override:
 			hl_group = "DiagnosticInfo",
 		},
 	},
+
+    calendar = {
+        language = "en",             -- Calendar language ("en" or "pt")
+        keymaps = {
+            previous_day = "h",      -- Move to previous day
+            next_day = "l",          -- Move to next day
+            previous_week = "k",     -- Move to previous week
+            next_week = "j",         -- Move to next week
+            previous_month = "H",    -- Move to previous month
+            next_month = "L",        -- Move to next month
+            select_day = "<CR>",     -- Select the current day
+            close_calendar = "q",    -- Close the calendar
+        },
+    },
 }
 ```
-
----
 
 ## Commands
 
@@ -139,12 +150,14 @@ Dooing comes with intuitive keybindings:
 | `x`          | Toggle todo status         |
 | `d`          | Delete current todo        |
 | `D`          | Delete all completed todos |
+| `h`          | Add due date               |
+| `r`          | Remove due date            |
 | `q`          | Close window               |
 | `?`          | Toggle help window         |
 | `t`          | Toggle tags window         |
 | `c`          | Clear active tag filter    |
 | `e`          | Edit todo                  |
-| `/`          | Toggle todo searching                  |
+| `/`          | Toggle todo searching      |
 
 #### Tags Window
 | Key    | Action        |
@@ -154,21 +167,17 @@ Dooing comes with intuitive keybindings:
 | `<CR>` | Filter by tag|
 | `q`    | Close window |
 
----
-
-## 🛠️ Usage
-
-1. Open Dooing with `<leader>td`
-2. Press `i` to add a new todo
-3. Use `#tags` in your todos to categorize them (e.g., "Buy milk #shopping")
-4. Press `x` to mark a todo as complete
-5. Press `d` to delete a todo
-6. Press `D` to clear all completed todos
-7. Press `q` to close the window
-8. Press `?` to toggle help window
-8. Press `t` to toggle tags window
-8. Press `c` to clear active tag filter
-8. Press `e` to Edit todo item
+#### Calendar Window
+| Key    | Action              |
+|--------|-------------------|
+| `h`    | Previous day       |
+| `l`    | Next day          |
+| `k`    | Previous week     |
+| `j`    | Next week         |
+| `H`    | Previous month    |
+| `L`    | Next month        |
+| `<CR>` | Select date       |
+| `q`    | Close calendar    |
 
 ---
 
@@ -178,8 +187,6 @@ Planned features and improvements for future versions of Dooing:
 
 #### Core Features
 
-- [ ] Due Dates Support
-- [x] Priority Levels
 - [x] Todo Filtering by Tags
 - [x] Todo Search
 - [ ] Todo List Per Project

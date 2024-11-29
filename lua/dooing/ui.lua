@@ -20,6 +20,7 @@ local M = {}
 --------------------------------------------------
 local state = require("dooing.state")
 local config = require("dooing.config")
+local calendar = require("dooing.calendar")
 
 --------------------------------------------------
 -- Local Variables and Cache
@@ -171,6 +172,8 @@ create_help_window = function()
 		" Main window:",
 		" i     - Add new to-do",
 		" x     - Toggle to-do status",
+		" h     - Add due date to to-do ",
+		" r     - Remove to-do due date",
 		" d     - Delete current to-do",
 		" D     - Delete all completed todos",
 		" ?     - Toggle this help window",
@@ -447,6 +450,41 @@ local function create_search_window()
 	})
 end
 
+-- Add due date to to-do in the format MM/DD/YYYY
+-- In ui.lua, update the add_due_date function
+local function add_due_date()
+	local current_line = vim.api.nvim_win_get_cursor(0)[1]
+	local todo_index = current_line - (state.active_filter and 3 or 1)
+
+	calendar.create(function(date_str)
+		if date_str and date_str ~= "" then
+			local success, err = state.add_due_date(todo_index, date_str)
+
+			if success then
+				vim.notify("Due date added successfully", vim.log.levels.INFO)
+				M.render_todos()
+			else
+				vim.notify("Error adding due date: " .. (err or "Unknown error"), vim.log.levels.ERROR)
+			end
+		end
+	end, { language = "en" })
+end
+
+-- Remove due date from to-do
+local function remove_due_date()
+	local current_line = vim.api.nvim_win_get_cursor(0)[1]
+	local todo_index = current_line - (state.active_filter and 3 or 1)
+
+	local success = state.remove_due_date(todo_index)
+
+	if success then
+		vim.notify("Due date removed successfully", vim.log.levels.INFO)
+		M.render_todos()
+	else
+		vim.notify("Error removing due date", vim.log.levels.ERROR)
+	end
+end
+
 -- Creates and configures the main todo window
 local function create_window()
 	local ui = vim.api.nvim_list_uis()[1]
@@ -493,6 +531,8 @@ local function create_window()
 	set_conditional_keymap("toggle_help", create_help_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("toggle_tags", create_tag_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("edit_todo", edit_todo, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("add_due_date", add_due_date, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("remove_due_date", remove_due_date, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("search_todos", create_search_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("clear_filter", function()
 		state.set_filter(nil)
@@ -503,7 +543,6 @@ end
 -- Public Interface
 --------------------------------------------------
 
--- Renders the todo list in the main window
 function M.render_todos()
 	if not buf_id then
 		return
@@ -522,11 +561,24 @@ function M.render_todos()
 
 			local text = todo.text
 
+			-- Format due date if exists
+			local due_date_str = ""
+			if todo.due_at then
+				local formatted_date = os.date("%m/%d/%Y", todo.due_at)
+				due_date_str = " [@" .. formatted_date .. "]"
+
+				-- Highlight overdue todos
+				local current_time = os.time()
+				if not todo.done and todo.due_at < current_time then
+					due_date_str = due_date_str .. " [OVERDUE]"
+				end
+			end
+
 			if todo.done then
 				text = "~" .. text .. "~"
 			end
 
-			table.insert(lines, "  " .. check_icon .. " " .. text)
+			table.insert(lines, "  " .. check_icon .. " " .. text .. due_date_str)
 		end
 	end
 
@@ -538,11 +590,11 @@ function M.render_todos()
 	table.insert(lines, "")
 	vim.api.nvim_buf_set_lines(buf_id, 0, -1, false, lines)
 
-	-- Add highlights
 	for i, line in ipairs(lines) do
 		if line:match("^%s+[○✓]") then
 			local todo_index = i - (state.active_filter and 3 or 1)
 			local todo = state.todos[todo_index]
+
 			if todo then
 				-- If todo is done, use DooingDone highlight
 				if todo.done then
@@ -566,6 +618,20 @@ function M.render_todos()
 				for tag in line:gmatch("#(%w+)") do
 					local start_idx = line:find("#" .. tag) - 1
 					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "Type", i - 1, start_idx, start_idx + #tag + 1)
+				end
+
+				-- Highlight due dates and overdue status
+				local due_date_match = line:match("%[@(%d+/%d+/%d+)%]")
+				local overdue_match = line:match("%[OVERDUE%]")
+
+				if due_date_match then
+					local due_date_start = line:find("@" .. due_date_match)
+					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "Comment", i - 1, due_date_start - 1, -1)
+				end
+
+				if overdue_match then
+					local overdue_start = line:find("%[OVERDUE%]")
+					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "ErrorMsg", i - 1, overdue_start - 1, -1)
 				end
 			end
 		elseif line:match("Filtered by:") then

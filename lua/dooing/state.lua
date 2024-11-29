@@ -59,6 +59,73 @@ function M.toggle_todo(index)
 	end
 end
 
+-- Parse date string in the format MM/DD/YYYY
+-- @TODO: handle `format` -> a custom date format
+local function parse_date(date_str, format)
+	local month, day, year = date_str:match("^(%d%d?)/(%d%d?)/(%d%d%d%d)$")
+
+	print(month, day, year)
+	if not (month and day and year) then
+		return nil, "Invalid date format"
+	end
+
+	month, day, year = tonumber(month), tonumber(day), tonumber(year)
+
+	local function is_leap_year(y)
+		return (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0)
+	end
+
+	-- Handle days and months, with leap year check
+	local days_in_month = {
+		31, -- January
+		is_leap_year(year) and 29 or 28, -- February
+		31, -- March
+		30, -- April
+		31, -- May
+		30, -- June
+		31, -- July
+		31, -- August
+		30, -- September
+		31, -- October
+		30, -- November
+		31, -- December
+	}
+	if month < 1 or month > 12 then
+		return nil, "Invalid month"
+	end
+	if day < 1 or day > days_in_month[month] then
+		return nil, "Invalid day for month"
+	end
+
+	-- Convert to Unix timestamp
+	local timestamp = os.time({ year = year, month = month, day = day, hour = 0, min = 0, sec = 0 })
+	return timestamp
+end
+
+function M.add_due_date(index, date_str)
+	if not M.todos[index] then
+		return false, "Todo not found"
+	end
+
+	local timestamp, err = parse_date(date_str)
+	if timestamp then
+		M.todos[index].due_at = timestamp
+		M.save_todos()
+		return true
+	else
+		return false, err
+	end
+end
+
+function M.remove_due_date(index)
+	if M.todos[index] then
+		M.todos[index].due_at = nil
+		M.save_todos()
+		return true
+	end
+	return false
+end
+
 function M.get_all_tags()
 	local tags = {}
 	local seen = {}

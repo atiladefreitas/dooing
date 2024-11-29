@@ -56,6 +56,8 @@ M.defaults = {
 		delete_todo = "d",
 		delete_completed = "D",
 		close_window = "q",
+		add_due_date = "h",
+		remove_due_date = "r",
 		toggle_help = "?",
 		toggle_tags = "t",
 		clear_filter = "c",
@@ -63,6 +65,19 @@ M.defaults = {
 		edit_tag = "e",
 		delete_tag = "d",
 		search_todos = "/",
+	},
+	calendar = {
+		language = "en",
+		keymaps = {
+			previous_day = "h",
+			next_day = "l",
+			previous_week = "k",
+			next_week = "j",
+			previous_month = "H",
+			next_month = "L",
+			select_day = "<CR>",
+			close_calendar = "q",
+		},
 	},
 }
 
