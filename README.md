@@ -188,6 +188,8 @@ Planned features and improvements for future versions of Dooing:
 
 #### Core Features
 
+- [x] Due Dates Support
+- [x] Priority Levels
 - [x] Todo Filtering by Tags
 - [x] Todo Search
 - [ ] Todo List Per Project
