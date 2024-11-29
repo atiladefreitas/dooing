@@ -178,9 +178,9 @@ function M.setup(opts)
 			if #args <= 2 then
 				return { "add", "list", "set" }
 			elseif args[1] == "set" and #args == 3 then
-				return { "priority", "priorities", "ect" }
-			elseif args[1] == "set" and args[3] == "priority" then
-				local priorities = {}
+				return { "priority", "ect" }
+			elseif args[1] == "set" and (args[3] == "priority") then
+				local priorities = { "nil" } -- Add nil as an option
 				for _, p in ipairs(config.options.priorities) do
 					table.insert(priorities, p.name)
 				end
