@@ -4,7 +4,19 @@ local vim = vim
 local M = {}
 local config = require("dooing.config")
 
+-- Cache frequently accessed values
+local todos = {}
+local priority_weights = {}
+
 M.todos = {}
+
+-- Update priority weights cache when config changes
+local function update_priority_weights()
+	priority_weights = {}
+	for _, p in ipairs(config.options.priorities) do
+		priority_weights[p.name] = p.weight or 1
+	end
+end
 
 local function save_todos()
 	local file = io.open(config.options.save_path, "w")
@@ -18,6 +30,7 @@ end
 M.save_todos = save_todos
 
 function M.load_todos()
+	update_priority_weights()
 	local file = io.open(config.options.save_path, "r")
 	if file then
 		local content = file:read("*all")
@@ -90,19 +103,9 @@ function M.get_priority_score(todo)
 		return 0
 	end
 
-	-- Create a lookup table for valid priorities and their weights
-	local priority_weights = {}
-	for _, p in ipairs(config.options.priorities) do
-		priority_weights[p.name] = p.weight or 1 -- Default weight of 1 if not specified
-	end
-
 	local score = 0
 	for _, priority_name in ipairs(todo.priority) do
-		-- Only count priorities that are defined in config
-		local weight = priority_weights[priority_name]
-		if weight then
-			score = score + weight
-		end
+		score = score + (priority_weights[priority_name] or 0)
 	end
 	return score
 end
