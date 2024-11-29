@@ -9,9 +9,15 @@ function M.setup(opts)
 
 	vim.api.nvim_create_user_command("Dooing", function(opts)
 		local args = vim.split(opts.args, "%s+", { trimempty = true })
-		if #args > 0 and args[1] == "add" then
-			table.remove(args, 1) -- Remove 'add'
+		if #args == 0 then
+			ui.toggle_todo_window()
+			return
+		end
 
+		local command = args[1]
+		table.remove(args, 1) -- Remove command
+
+		if command == "add" then
 			-- Parse priorities if -p or --priority flag is present
 			local priorities = nil
 			local todo_text = ""
@@ -80,6 +86,71 @@ function M.setup(opts)
 					title = "Dooing",
 				})
 			end
+		elseif command == "list" then
+			-- Print all todos with their indices
+			for i, todo in ipairs(state.todos) do
+				local status = todo.done and "✓" or "○"
+				local priorities = todo.priorities and " [" .. table.concat(todo.priorities, ",") .. "]" or ""
+				local ect = todo.estimated_hours and string.format(" [≈ %.1fh]", todo.estimated_hours) or ""
+				vim.notify(string.format("%d. %s %s%s%s", i, status, todo.text, priorities, ect), vim.log.levels.INFO)
+			end
+		elseif command == "set" then
+			if #args < 3 then
+				vim.notify("Usage: Dooing set <index> <field> <value>", vim.log.levels.ERROR)
+				return
+			end
+
+			local index = tonumber(args[1])
+			if not index or not state.todos[index] then
+				vim.notify("Invalid todo index: " .. args[1], vim.log.levels.ERROR)
+				return
+			end
+
+			local field = args[2]
+			local value = args[3]
+
+			if field == "priority" then
+				-- Handle priority setting
+				local priority_list = vim.split(value, ",", { trimempty = true })
+				local valid_priorities = {}
+				local invalid_priorities = {}
+
+				for _, p in ipairs(priority_list) do
+					local is_valid = false
+					for _, config_p in ipairs(config.options.priorities) do
+						if p == config_p.name then
+							is_valid = true
+							table.insert(valid_priorities, p)
+							break
+						end
+					end
+					if not is_valid then
+						table.insert(invalid_priorities, p)
+					end
+				end
+
+				if #invalid_priorities > 0 then
+					vim.notify("Invalid priorities: " .. table.concat(invalid_priorities, ", "), vim.log.levels.WARN)
+				end
+
+				if #valid_priorities > 0 then
+					state.todos[index].priorities = valid_priorities
+					state.save_todos()
+					vim.notify("Updated priorities for todo " .. index, vim.log.levels.INFO)
+				end
+			elseif field == "ect" then
+				-- Handle estimated completion time setting
+				local hours, err = ui.parse_time_estimation(value)
+				if hours then
+					state.todos[index].estimated_hours = hours
+					state.save_todos()
+					vim.notify("Updated estimated completion time for todo " .. index, vim.log.levels.INFO)
+				else
+					vim.notify("Error: " .. (err or "Invalid time format"), vim.log.levels.ERROR)
+				end
+			else
+				vim.notify("Unknown field: " .. field, vim.log.levels.ERROR)
+			end
 		else
 			ui.toggle_todo_window()
 		end
@@ -89,7 +160,15 @@ function M.setup(opts)
 		complete = function(arglead, cmdline, cursorpos)
 			local args = vim.split(cmdline, "%s+", { trimempty = true })
 			if #args <= 2 then
-				return { "add" }
+				return { "add", "list", "set" }
+			elseif args[1] == "set" and #args == 3 then
+				return { "priority", "ect" }
+			elseif args[1] == "set" and args[3] == "priority" then
+				local priorities = {}
+				for _, p in ipairs(config.options.priorities) do
+					table.insert(priorities, p.name)
+				end
+				return priorities
 			elseif args[#args - 1] == "-p" or args[#args - 1] == "--priority" then
 				-- Return available priorities for completion
 				local priorities = {}
