@@ -173,6 +173,12 @@ function M.get_priority_score(todo)
 	for _, priority_name in ipairs(todo.priority) do
 		score = score + (priority_weights[priority_name] or 0)
 	end
+
+	local current_time = os.time()
+	if todo.due_at < current_time then
+		score = score + config.options.due_score_offset
+	end
+
 	return score
 end
 
