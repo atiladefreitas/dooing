@@ -48,6 +48,7 @@ M.defaults = {
 		},
 	},
 	due_score_offset = 10,
+	hour_score_value = 1,
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
 	keymaps = {
 		toggle_window = "<leader>td",

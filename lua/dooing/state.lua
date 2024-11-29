@@ -191,21 +191,37 @@ end
 
 -- Calculate priority score for a todo item
 function M.get_priority_score(todo)
-	if not todo.priority or not config.options.priorities or #config.options.priorities == 0 or todo.done then
+	if todo.done then
 		return 0
 	end
 
+	local offset = 0
+
+	-- Due date offset
+	local current_time = os.time()
+	if todo.due_at and todo.due_at < current_time then
+		offset = offset + (config.options.due_score_offset or 0)
+	end
+
+	-- Add more offsets here in the future...
+
+	if not config.options.priorities or #config.options.priorities == 0 then
+		return offset
+	end
+
+	-- Calculate base score from priorities
 	local score = 0
 	for _, priority_name in ipairs(todo.priority) do
 		score = score + (priority_weights[priority_name] or 0)
 	end
 
-	local current_time = os.time()
-	if todo.due_at and todo.due_at < current_time then
-		score = score + config.options.due_score_offset
+	-- Calculate estimated completion time multiplier
+	local ect_multiplier = 1
+	if todo.estimated_hours and todo.estimated_hours > 0 then
+		ect_multiplier = 1 / (todo.estimated_hours * config.options.hour_score_value)
 	end
 
-	return score
+	return ect_multiplier * score + offset
 end
 
 function M.sort_todos()
