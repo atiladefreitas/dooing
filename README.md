@@ -82,34 +82,48 @@ Dooing comes with sensible defaults that you can override:
 
     prioritization = false,
 
-	priorities = {
+	priorities = {                   -- Defines priorities one can assign to tasks
 		{
-			name = "important and urgent",
-			color = "DooingPriorityUrgentImportant",
-			icon = "",
+			name = "important",
+			weight = 4,              -- Weight of each priority. E.g. here, `important` is ranked higher than `urgent`.
+		},
+		{
+			name = "urgent",
+			weight = 2,
+		},
+	},
+	priority_thresholds = {
+		{
+			min = 5, -- Corresponds to `urgent` and `important` tasks
+			max = 999,
+			color = nil,
 			hl_group = "DiagnosticError",
 		},
 		{
-			name = "important and not urgent",
-			color = "DooingPriorityImportant",
-			icon = "",
+			min = 3, -- Corresponds to `important` tasks
+			max = 4,
+			color = nil,
 			hl_group = "DiagnosticWarn",
 		},
 		{
-			name = "not important and urgent",
-			color = "DooingPriorityUrgent",
-			icon = "",
+			min = 1, -- Corresponds to `urgent tasks`
+			max = 2,
+			color = nil,
 			hl_group = "DiagnosticInfo",
-		},
-		{
-			name = "not important and not urgent",
-			color = "DooingPriorityNormal",
-			icon = "",
-			hl_group = "DiagnosticHint",
 		},
 	},
 }
 ```
+
+---
+
+## Commands
+
+Dooing can be controlled through user commands:
+
+- `:Dooing` opens the main window,
+- `:Dooing add Your Simple Task`, adds a task.
+- `:Dooing -p important,urgent Your Important and Urgent task`, assigns priority to it.
 
 ---
 
@@ -165,7 +179,7 @@ Planned features and improvements for future versions of Dooing:
 #### Core Features
 
 - [ ] Due Dates Support
-- [ ] Priority Levels
+- [x] Priority Levels
 - [x] Todo Filtering by Tags
 - [x] Todo Search
 - [ ] Todo List Per Project
