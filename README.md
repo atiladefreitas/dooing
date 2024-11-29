@@ -79,6 +79,35 @@ Dooing comes with sensible defaults that you can override:
         delete_tag = "d",            -- Delete tag [on tag window]
         search_todo = "/",           -- Toggle todo searching
     },
+
+    prioritization = false,
+
+	priorities = {
+		{
+			name = "important and urgent",
+			color = "DooingPriorityUrgentImportant",
+			icon = "",
+			hl_group = "DiagnosticError",
+		},
+		{
+			name = "important and not urgent",
+			color = "DooingPriorityImportant",
+			icon = "",
+			hl_group = "DiagnosticWarn",
+		},
+		{
+			name = "not important and urgent",
+			color = "DooingPriorityUrgent",
+			icon = "",
+			hl_group = "DiagnosticInfo",
+		},
+		{
+			name = "not important and not urgent",
+			color = "DooingPriorityNormal",
+			icon = "",
+			hl_group = "DiagnosticHint",
+		},
+	},
 }
 ```
 
