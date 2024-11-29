@@ -15,6 +15,9 @@ function M.setup(opts)
 			local todo_text = table.concat(args, " ")
 			if todo_text ~= "" then
 				state.add_todo(todo_text)
+				vim.notify("Todo created: " .. todo_text, vim.log.levels.INFO, {
+					title = "Dooing",
+				})
 			end
 		else
 			ui.toggle_todo_window()
