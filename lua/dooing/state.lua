@@ -211,8 +211,10 @@ function M.get_priority_score(todo)
 
 	-- Calculate base score from priorities
 	local score = 0
-	for _, priority_name in ipairs(todo.priority) do
-		score = score + (priority_weights[priority_name] or 0)
+	if todo.priority and type(todo.priority) == "table" then
+		for _, priority_name in ipairs(todo.priority) do
+			score = score + (priority_weights[priority_name] or 0)
+		end
 	end
 
 	-- Calculate estimated completion time multiplier
