@@ -710,7 +710,7 @@ function M.new_todo()
 					border = "rounded",
 					title = " Select Priorities ",
 					title_pos = "center",
-					footer = "  <x> : toggle | <Enter>: confirm ",
+					footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_prioritization),
 					footer_pos = "center",
 				})
 
@@ -719,7 +719,7 @@ function M.new_todo()
 				vim.api.nvim_buf_set_option(select_buf, "modifiable", false)
 
 				-- Add keymaps for selection
-				vim.keymap.set("n", "x", function()
+				vim.keymap.set("n", config.options.keymaps.toggle_prioritization, function()
 					local cursor = vim.api.nvim_win_get_cursor(select_win)
 					local line_num = cursor[1]
 					local current_line = vim.api.nvim_buf_get_lines(select_buf, line_num - 1, line_num, false)[1]
@@ -816,6 +816,7 @@ function M.toggle_todo()
 	end
 end
 
+-- Deletes the current todo item
 function M.delete_todo()
 	local cursor = vim.api.nvim_win_get_cursor(win_id)
 	local todo_index = cursor[1] - 1
@@ -828,16 +829,15 @@ function M.delete_todo()
 				if todo.text:match("#" .. state.active_filter) then
 					visible_index = visible_index + 1
 					if visible_index == todo_index - 2 then
-						todo_index = i
+						state.delete_todo(i)
 						break
 					end
 				end
 			end
+		else
+			state.delete_todo(todo_index)
 		end
-
-		state.delete_todo_with_confirmation(todo_index, win_id, calendar, function()
-			M.render_todos()
-		end)
+		M.render_todos()
 	end
 end
 
