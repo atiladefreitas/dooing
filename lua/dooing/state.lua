@@ -5,7 +5,6 @@ local M = {}
 local config = require("dooing.config")
 
 -- Cache frequently accessed values
-local todos = {}
 local priority_weights = {}
 
 M.todos = {}
