@@ -65,6 +65,8 @@ M.defaults = {
 		edit_tag = "e",
 		delete_tag = "d",
 		search_todos = "/",
+		add_time_estimation = "T",
+		remove_time_estimation = "R",
 	},
 	calendar = {
 		language = "en",
