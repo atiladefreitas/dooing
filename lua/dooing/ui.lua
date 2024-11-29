@@ -453,7 +453,7 @@ local function create_search_window()
 end
 
 -- Parse time estimation string (e.g., "2h", "1d", "0.5w")
-local function parse_time_estimation(time_str)
+function M.parse_time_estimation(time_str)
 	local number, unit = time_str:match("^(%d+%.?%d*)([hdw])$")
 
 	if not (number and unit) then
@@ -485,7 +485,7 @@ local function add_time_estimation()
 		default = "",
 	}, function(input)
 		if input and input ~= "" then
-			local hours, err = parse_time_estimation(input)
+			local hours, err = M.parse_time_estimation(input)
 			if hours then
 				state.todos[todo_index].estimated_hours = hours
 				state.save_todos()
