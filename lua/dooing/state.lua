@@ -175,7 +175,7 @@ function M.get_priority_score(todo)
 	end
 
 	local current_time = os.time()
-	if todo.due_at < current_time then
+	if todo.due_at and todo.due_at < current_time then
 		score = score + config.options.due_score_offset
 	end
 
