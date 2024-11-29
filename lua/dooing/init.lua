@@ -8,14 +8,27 @@ function M.setup(opts)
 	state.load_todos()
 
 	vim.api.nvim_create_user_command("Dooing", function(opts)
-		if opts.args ~= "" then
-			state.add_todo(opts.args)
+		local args = vim.split(opts.args, "%s+", { trimempty = true })
+		if #args > 0 and args[1] == "add" then
+			-- Remove the "add" keyword and join the rest as the todo text
+			table.remove(args, 1)
+			local todo_text = table.concat(args, " ")
+			if todo_text ~= "" then
+				state.add_todo(todo_text)
+			end
 		else
 			ui.toggle_todo_window()
 		end
 	end, {
 		desc = "Toggle Todo List window or add new todo",
-		nargs = "?",
+		nargs = "*",
+		complete = function(arglead, cmdline, cursorpos)
+			local args = vim.split(cmdline, "%s+", { trimempty = true })
+			if #args <= 2 then
+				return { "add" }
+			end
+			return {}
+		end,
 	})
 
 	-- Only set up keymap if it's enabled in config
