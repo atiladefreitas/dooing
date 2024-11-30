@@ -492,8 +492,8 @@ end
 -- Creates and configures the main todo window
 local function create_window()
 	local ui = vim.api.nvim_list_uis()[1]
-	local width = 55
-	local height = 20
+	local width = config.options.window.width
+	local height = config.options.window.height
 	local col = math.floor((ui.width - width) / 2)
 	local row = math.floor((ui.height - height) / 2)
 
