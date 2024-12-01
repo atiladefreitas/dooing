@@ -80,6 +80,7 @@ Dooing comes with sensible defaults that you can override:
         edit_tag = "e",              -- Edit tag [on tag window]
         delete_tag = "d",            -- Delete tag [on tag window]
         search_todo = "/",           -- Toggle todo searching
+        toggle_priority = "<Space>"  -- Toggle todo priority on creation
     },
 
     prioritization = false,
