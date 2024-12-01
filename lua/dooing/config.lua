@@ -50,6 +50,9 @@ M.defaults = {
 		},
 	},
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
+
+	confirm_when_delete = true,
+
 	keymaps = {
 		toggle_window = "<leader>td",
 		new_todo = "i",
