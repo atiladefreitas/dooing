@@ -3,7 +3,7 @@ local M = {}
 
 M.defaults = {
 	window = {
-		width = 40,
+		width = 55,
 		height = 20,
 		border = "rounded",
 		padding = {
