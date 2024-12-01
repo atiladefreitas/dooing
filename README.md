@@ -61,6 +61,7 @@ Dooing comes with sensible defaults that you can override:
     icons = {
         pending = '○',      -- Pending todo icon
         done = '✓',        -- Completed todo icon
+        calendar = "",    -- due date todo icon
     },
     
     -- Keymaps
