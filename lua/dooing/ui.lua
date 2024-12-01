@@ -710,7 +710,7 @@ function M.new_todo()
 					border = "rounded",
 					title = " Select Priorities ",
 					title_pos = "center",
-					footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_prioritization),
+					footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_priority),
 					footer_pos = "center",
 				})
 
@@ -719,7 +719,7 @@ function M.new_todo()
 				vim.api.nvim_buf_set_option(select_buf, "modifiable", false)
 
 				-- Add keymaps for selection
-				vim.keymap.set("n", config.options.keymaps.toggle_prioritization, function()
+				vim.keymap.set("n", config.options.keymaps.toggle_priority, function()
 					local cursor = vim.api.nvim_win_get_cursor(select_win)
 					local line_num = cursor[1]
 					local current_line = vim.api.nvim_buf_get_lines(select_buf, line_num - 1, line_num, false)[1]
