@@ -845,23 +845,21 @@ function M.delete_todo()
 				if todo.text:match("#" .. state.active_filter) then
 					visible_index = visible_index + 1
 					if visible_index == todo_index - 2 then
-						if config.confirm_when_delete then
-							state.delete_todo_with_confirmation(i)
-						else
-							state.delete_todo(todo_index)
-						end
+						todo_index = i
 						break
 					end
 				end
 			end
 		else
-			if config.confirm_when_delete then
-				state.delete_todo_with_confirmation(todo_index)
+			if config.options.confirm_when_delete then
+				state.delete_todo_with_confirmation(todo_index, win_id, calendar, function()
+					M.render_todos()
+				end)
 			else
 				state.delete_todo(todo_index)
+				M.render_todos()
 			end
 		end
-		M.render_todos()
 	end
 end
 
