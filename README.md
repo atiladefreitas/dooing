@@ -49,6 +49,8 @@ Dooing comes with sensible defaults that you can override:
 {
     -- Core settings
     save_path = vim.fn.stdpath('data') .. '/dooing_todos.json',
+
+	confirm_when_delete = true, -- ask for confirmation when deleting a todo
     
     -- Window appearance
     window = {
@@ -61,6 +63,7 @@ Dooing comes with sensible defaults that you can override:
     icons = {
         pending = '○',      -- Pending todo icon
         done = '✓',        -- Completed todo icon
+        calendar = "",    -- due date todo icon
     },
     
     -- Keymaps
