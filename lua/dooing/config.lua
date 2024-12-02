@@ -45,7 +45,7 @@ M.defaults = {
 			hl_group = "DiagnosticInfo",
 		},
 	},
-	hour_score_value = 1,
+	hour_score_value = 1 / 8,
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
 	keymaps = {
 		toggle_window = "<leader>td",

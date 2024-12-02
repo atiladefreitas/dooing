@@ -521,7 +521,7 @@ local function add_time_estimation()
 	local todo_index = current_line - (state.active_filter and 3 or 1)
 
 	vim.ui.input({
-		prompt = "Estimated completion time (e.g., 2h, 1d, 0.5w): ",
+		prompt = "Estimated completion time (e.g., 15m, 2h, 1d, 0.5w): ",
 		default = "",
 	}, function(input)
 		if input and input ~= "" then
