@@ -73,25 +73,29 @@ local function setup_highlights()
 	highlight_cache.help = "DooingHelpText"
 end
 
--- Get or create highlight group for a threshold
-local function get_threshold_highlight(threshold)
-	if not threshold then
+-- Get or create highlight group for a priority group
+local function get_priority_highlight(priority_group)
+	if not priority_group then
 		return highlight_cache.pending
 	end
 
-	local cache_key = threshold.color or threshold.hl_group
+	local cache_key = priority_group.color or priority_group.hl_group
 	if highlight_cache[cache_key] then
 		return highlight_cache[cache_key]
 	end
 
 	local hl_group = highlight_cache.pending
 
-	if threshold.color and type(threshold.color) == "string" and threshold.color:match("^#%x%x%x%x%x%x$") then
-		local hl_name = "Dooing" .. threshold.color:gsub("#", "")
-		api.nvim_set_hl(0, hl_name, { fg = threshold.color })
+	if
+		priority_group.color
+		and type(priority_group.color) == "string"
+		and priority_group.color:match("^#%x%x%x%x%x%x$")
+	then
+		local hl_name = "Dooing" .. priority_group.color:gsub("#", "")
+		vim.api.nvim_set_hl(0, hl_name, { fg = priority_group.color })
 		hl_group = hl_name
-	elseif threshold.hl_group then
-		hl_group = threshold.hl_group
+	elseif priority_group.hl_group then
+		hl_group = priority_group.hl_group
 	end
 
 	highlight_cache[cache_key] = hl_group
@@ -724,7 +728,7 @@ function M.render_todos()
 							end
 						end
 					end
-					local hl_group = get_threshold_highlight(matching_group)
+					local hl_group = get_priority_highlight(matching_group)
 					vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
 				end
 
