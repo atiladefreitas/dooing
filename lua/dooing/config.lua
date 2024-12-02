@@ -3,7 +3,7 @@ local M = {}
 
 M.defaults = {
 	window = {
-		width = 40,
+		width = 55,
 		height = 20,
 		border = "rounded",
 		padding = {
@@ -16,6 +16,7 @@ M.defaults = {
 	icons = {
 		pending = "○",
 		done = "✓",
+		calendar = "",
 	},
 	priorities = {
 		{
@@ -68,6 +69,7 @@ M.defaults = {
 		search_todos = "/",
 		add_time_estimation = "T",
 		remove_time_estimation = "R",
+		toggle_priority = "<Space>"
 	},
 	calendar = {
 		language = "en",

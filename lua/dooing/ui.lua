@@ -108,7 +108,10 @@ edit_todo = function()
 	local todo_index = cursor[1] - 1
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
 
-	if line_content:match("^%s+[○✓]") then
+	local done_icon = config.options.icons.done
+	local pending_icon = config.options.icons.pending
+
+	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
@@ -167,8 +170,6 @@ create_help_window = function()
 	})
 
 	local help_content = {
-		" Keybindings:",
-		" ",
 		" Main window:",
 		" i     - Add new to-do",
 		" x     - Toggle to-do status",
@@ -326,6 +327,9 @@ local function handle_search_query(query)
 		return
 	end
 
+	local done_icon = config.options.icons.done
+	local pending_icon = config.options.icons.pending
+
 	-- Prepare the search results
 	local results = state.search_todos(query)
 	vim.api.nvim_buf_set_option(search_buf_id, "modifiable", true)
@@ -333,7 +337,7 @@ local function handle_search_query(query)
 	local valid_lines = {} -- Store valid todo lines
 	if #results > 0 then
 		for _, result in ipairs(results) do
-			local icon = result.todo.done and "✓" or "○"
+			local icon = result.todo.done and done_icon or pending_icon
 			local line = string.format("  %s %s", icon, result.todo.text)
 			table.insert(lines, line)
 			table.insert(valid_lines, { line_index = #lines, result = result })
@@ -351,8 +355,8 @@ local function handle_search_query(query)
 
 	-- Highlight todos on search results
 	for i, line in ipairs(lines) do
-		if line:match("^%s+[○✓]") then
-			local hl_group = line:match("✓") and "DooingDone" or "DooingPending"
+		if line:match("^%s+[" .. done_icon .. pending_icon .. "]") then
+			local hl_group = line:match(done_icon) and "DooingDone" or "DooingPending"
 			vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, hl_group, i - 1, 0, -1)
 			for tag in line:gmatch("#(%w+)") do
 				local start_idx = line:find("#" .. tag) - 1
@@ -551,8 +555,8 @@ end
 -- Creates and configures the main todo window
 local function create_window()
 	local ui = vim.api.nvim_list_uis()[1]
-	local width = 55
-	local height = 20
+	local width = config.options.window.width
+	local height = config.options.window.height
 	local col = math.floor((ui.width - width) / 2)
 	local row = math.floor((ui.height - height) / 2)
 
@@ -620,11 +624,13 @@ function M.render_todos()
 	state.sort_todos()
 
 	local lang = calendar and calendar.get_language()
-	lang = calendar.MONTH_NAMES[lang] and lang or "en"
+
+	local done_icon = config.options.icons.done
+	local pending_icon = config.options.icons.pending
 
 	for _, todo in ipairs(state.todos) do
 		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
-			local check_icon = todo.done and "✓" or "○"
+			local check_icon = todo.done and done_icon or pending_icon
 
 			local text = todo.text
 
@@ -635,12 +641,18 @@ function M.render_todos()
 				local month = calendar.MONTH_NAMES[lang][date.month]
 
 				local formatted_date
-				if lang == "pt" then
+				if lang == "pt" or lang == "en" then
 					formatted_date = string.format("%d de %s de %d", date.day, month, date.year)
-				else
+				elseif lang == "fr" then
+					formatted_date = string.format("%d %s %d", date.day, month, date.year)
+				elseif lang == "de" or lang == "it" then
+					formatted_date = string.format("%d %s %d", date.day, month, date.year)
+				elseif lang == "jp" then
+					formatted_date = string.format("%d年%s%d日", date.year, month, date.day)
+				else -- "en"
 					formatted_date = string.format("%s %d, %d", month, date.day, date.year)
 				end
-				due_date_str = " [@ " .. formatted_date .. "]"
+				due_date_str = " [" .. config.options.icons.calendar .. " " .. formatted_date .. "]"
 
 				-- Highlight overdue todos
 				local current_time = os.time()
@@ -678,7 +690,7 @@ function M.render_todos()
 	vim.api.nvim_buf_set_lines(buf_id, 0, -1, false, lines)
 
 	for i, line in ipairs(lines) do
-		if line:match("^%s+[○✓]") then
+		if line:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 			local todo_index = i - (state.active_filter and 3 or 1)
 			local todo = state.todos[todo_index]
 
@@ -786,7 +798,7 @@ function M.new_todo()
 					border = "rounded",
 					title = " Select Priorities ",
 					title_pos = "center",
-					footer = " <Space>: toggle | <Enter>: confirm ",
+					footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_priority),
 					footer_pos = "center",
 				})
 
@@ -795,7 +807,7 @@ function M.new_todo()
 				vim.api.nvim_buf_set_option(select_buf, "modifiable", false)
 
 				-- Add keymaps for selection
-				vim.keymap.set("n", "<Space>", function()
+				vim.keymap.set("n", config.options.keymaps.toggle_priority, function()
 					local cursor = vim.api.nvim_win_get_cursor(select_win)
 					local line_num = cursor[1]
 					local current_line = vim.api.nvim_buf_get_lines(select_buf, line_num - 1, line_num, false)[1]
@@ -841,10 +853,10 @@ function M.new_todo()
 
 					for i = 1, total_lines do
 						local line = vim.api.nvim_buf_get_lines(buf_id, i - 1, i, false)[1]
-						if line:match("^%s+[○]") then
+						if line:match("^%s+[" .. config.options.icons.pending .. "]") then
 							last_uncompleted_line = i
 						end
-						if line:match("^%s+[✓].*~") then
+						if line:match("^%s+[" .. config.options.icons.done .. "].*~") then
 							target_line = i - 1
 							break
 						end
@@ -872,8 +884,10 @@ function M.toggle_todo()
 	local cursor = vim.api.nvim_win_get_cursor(win_id)
 	local todo_index = cursor[1] - 1
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
+	local done_icon = config.options.icons.done
+	local pending_icon = config.options.icons.pending
 
-	if line_content:match("^%s+[○✓]") then
+	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
@@ -897,8 +911,10 @@ function M.delete_todo()
 	local cursor = vim.api.nvim_win_get_cursor(win_id)
 	local todo_index = cursor[1] - 1
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
+	local done_icon = config.options.icons.done
+	local pending_icon = config.options.icons.pending
 
-	if line_content:match("^%s+[○✓]") then
+	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
