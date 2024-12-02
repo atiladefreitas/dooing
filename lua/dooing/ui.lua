@@ -736,7 +736,9 @@ function M.render_todos()
 				if todo.done then
 					add_hl(line_nr, 0, -1, "DooingDone")
 				else
-					add_hl(line_nr, 0, -1, "DooingPending")
+					-- Get highlight based on priorities
+					local hl_group = get_priority_highlight(todo.priorities)
+					add_hl(line_nr, 0, -1, hl_group)
 				end
 
 				-- Tags highlight
