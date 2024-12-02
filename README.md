@@ -48,7 +48,7 @@ Dooing comes with sensible defaults that you can override:
 ```lua
 {
     -- Core settings
-	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
+    save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
 
     -- Window settings
     window = {
@@ -60,6 +60,18 @@ Dooing comes with sensible defaults that you can override:
             bottom = 1,
             left = 2,
             right = 2,
+        },
+    },
+
+    -- To-do formatting
+    formatting = {
+        pending = {
+            icon = "○",
+            format = { "icon", "text", "due_date" },
+        },
+        done = {
+            icon = "✓",
+            format = { "icon", "text", "due_date" },
         },
     },
     
