@@ -28,22 +28,19 @@ M.defaults = {
 			weight = 2,
 		},
 	},
-	priority_thresholds = {
+	priority_groups = {
 		{
-			min = 5, -- Corresponds to `urgent` and `important` tasks
-			max = 999,
+			members = { "important", "urgent" },
 			color = nil,
 			hl_group = "DiagnosticError",
 		},
 		{
-			min = 3, -- Corresponds to `important` tasks
-			max = 4,
+			members = { "important" },
 			color = nil,
 			hl_group = "DiagnosticWarn",
 		},
 		{
-			min = 1, -- Corresponds to `urgent tasks`
-			max = 2,
+			members = { "urgent" },
 			color = nil,
 			hl_group = "DiagnosticInfo",
 		},
@@ -69,7 +66,7 @@ M.defaults = {
 		search_todos = "/",
 		add_time_estimation = "T",
 		remove_time_estimation = "R",
-		toggle_priority = "<Space>"
+		toggle_priority = "<Space>",
 	},
 	calendar = {
 		language = "en",

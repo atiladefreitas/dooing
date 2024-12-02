@@ -699,17 +699,32 @@ function M.render_todos()
 				if todo.done then
 					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "DooingDone", i - 1, 0, -1)
 				else
-					-- Calculate priority score and find matching threshold
-					local score = state.get_priority_score(todo)
-					local threshold = nil
-
-					for _, t in ipairs(config.options.priority_thresholds) do
-						if score >= t.min and score <= t.max then
-							threshold = t
-							break
+					-- Find matching priority group based on todo's priorities
+					local matching_group = nil
+					if todo.priorities then
+						for _, group in ipairs(config.options.priority_groups) do
+							local all_members_match = true
+							-- Check if all group members are in todo's priorities
+							for _, member in ipairs(group.members) do
+								local found = false
+								for _, priority in ipairs(todo.priorities) do
+									if priority == member then
+										found = true
+										break
+									end
+								end
+								if not found then
+									all_members_match = false
+									break
+								end
+							end
+							if all_members_match then
+								matching_group = group
+								break
+							end
 						end
 					end
-					local hl_group = get_threshold_highlight(threshold)
+					local hl_group = get_threshold_highlight(matching_group)
 					vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
 				end
 
