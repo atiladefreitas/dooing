@@ -46,7 +46,7 @@ function M.add_todo(text, priority_names)
 		done = false,
 		category = text:match("#(%w+)") or "",
 		created_at = os.time(),
-		priority = priority_names,
+		priorities = priority_names,
 		estimated_hours = nil, -- Add estimated_hours field
 	})
 	save_todos()
@@ -211,8 +211,8 @@ function M.get_priority_score(todo)
 
 	-- Calculate base score from priorities
 	local score = 0
-	if todo.priority and type(todo.priority) == "table" then
-		for _, priority_name in ipairs(todo.priority) do
+	if todo.priorities and type(todo.priorities) == "table" then
+		for _, priority_name in ipairs(todo.priorities) do
 			score = score + (priority_weights[priority_name] or 0)
 		end
 	end
