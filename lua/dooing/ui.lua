@@ -73,33 +73,52 @@ local function setup_highlights()
 	highlight_cache.help = "DooingHelpText"
 end
 
--- Get or create highlight group for a priority group
-local function get_priority_highlight(priority_group)
-	if not priority_group then
+-- Get highlight group for a set of priorities
+local function get_priority_highlight(priorities)
+	if not priorities or #priorities == 0 then
 		return highlight_cache.pending
 	end
 
-	local cache_key = priority_group.color or priority_group.hl_group
-	if highlight_cache[cache_key] then
-		return highlight_cache[cache_key]
+	-- Find matching priority group based on priorities
+	for _, group in pairs(config.options.priority_groups) do
+		-- Check if all group members are present in the priorities
+		local all_members_match = true
+		for _, member in ipairs(group.members) do
+			local found = false
+			for _, priority in ipairs(priorities) do
+				if priority == member then
+					found = true
+					break
+				end
+			end
+			if not found then
+				all_members_match = false
+				break
+			end
+		end
+
+		if all_members_match then
+			-- Create cache key from group definition
+			local cache_key = table.concat(group.members, "_")
+			if highlight_cache[cache_key] then
+				return highlight_cache[cache_key]
+			end
+
+			local hl_group = highlight_cache.pending
+			if group.color and type(group.color) == "string" and group.color:match("^#%x%x%x%x%x%x$") then
+				local hl_name = "Dooing" .. group.color:gsub("#", "")
+				vim.api.nvim_set_hl(0, hl_name, { fg = group.color })
+				hl_group = hl_name
+			elseif group.hl_group then
+				hl_group = group.hl_group
+			end
+
+			highlight_cache[cache_key] = hl_group
+			return hl_group
+		end
 	end
 
-	local hl_group = highlight_cache.pending
-
-	if
-		priority_group.color
-		and type(priority_group.color) == "string"
-		and priority_group.color:match("^#%x%x%x%x%x%x$")
-	then
-		local hl_name = "Dooing" .. priority_group.color:gsub("#", "")
-		vim.api.nvim_set_hl(0, hl_name, { fg = priority_group.color })
-		hl_group = hl_name
-	elseif priority_group.hl_group then
-		hl_group = priority_group.hl_group
-	end
-
-	highlight_cache[cache_key] = hl_group
-	return hl_group
+	return highlight_cache.pending
 end
 
 --------------------------------------------------
@@ -693,93 +712,46 @@ function M.render_todos()
 	table.insert(lines, "")
 	vim.api.nvim_buf_set_lines(buf_id, 0, -1, false, lines)
 
+	-- Helper function to add highlight
+	local function add_hl(line_nr, start_col, end_col, hl_group)
+		vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, line_nr, start_col, end_col)
+	end
+
+	-- Helper function to find pattern and highlight
+	local function highlight_pattern(line, line_nr, pattern, hl_group)
+		local start_idx = line:find(pattern)
+		if start_idx then
+			add_hl(line_nr, start_idx - 1, -1, hl_group)
+		end
+	end
+
 	for i, line in ipairs(lines) do
+		local line_nr = i - 1
 		if line:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 			local todo_index = i - (state.active_filter and 3 or 1)
 			local todo = state.todos[todo_index]
 
 			if todo then
-				-- If todo is done, use DooingDone highlight
+				-- Base todo highlight
 				if todo.done then
-					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "DooingDone", i - 1, 0, -1)
+					add_hl(line_nr, 0, -1, "DooingDone")
 				else
-					-- Log todo priorities
-					if todo.priorities then
-						vim.notify(
-							string.format(
-								"Todo '%s' has priorities: %s",
-								todo.text,
-								table.concat(todo.priorities, ", ")
-							),
-							vim.log.levels.INFO
-						)
-					else
-						vim.notify(string.format("Todo '%s' has no priorities", todo.text), vim.log.levels.INFO)
-					end
-
-					-- Log configured priority groups
-					if config.options.priorities then
-						local groups = {}
-						for _, group in ipairs(config.options.priorities) do
-							table.insert(
-								groups,
-								string.format(
-									"%s (color: %s, hl_group: %s)",
-									group.name,
-									group.color or "none",
-									group.hl_group or "none"
-								)
-							)
-						end
-						vim.notify(
-							string.format("Configured priority groups:\n%s", table.concat(groups, "\n")),
-							vim.log.levels.INFO
-						)
-					else
-						vim.notify("No priority groups configured", vim.log.levels.INFO)
-					end
-
-					-- Find matching priority group based on todo's priorities
-					if todo.priorities and config.options.priorities then
-						for _, priority in ipairs(todo.priorities) do
-							for _, group in ipairs(config.options.priorities) do
-								if group.name == priority then
-									vim.notify(
-										string.format(
-											"Found matching priority group '%s' for todo '%s'",
-											group.name,
-											todo.text
-										),
-										vim.log.levels.INFO
-									)
-								end
-							end
-						end
-					end
+					add_hl(line_nr, 0, -1, "DooingPending")
 				end
 
-				-- Highlight tags
+				-- Tags highlight
 				for tag in line:gmatch("#(%w+)") do
-					local start_idx = line:find("#" .. tag) - 1
-					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "Type", i - 1, start_idx, start_idx + #tag + 1)
+					local tag_pattern = "#" .. tag
+					local start_idx = line:find(tag_pattern) - 1
+					add_hl(line_nr, start_idx, start_idx + #tag_pattern, "Type")
 				end
 
-				-- Highlight due dates and overdue status
-				local due_date_match = line:match("%[@(%d+/%d+/%d+)%]")
-				local overdue_match = line:match("%[OVERDUE%]")
-
-				if due_date_match then
-					local due_date_start = line:find("@" .. due_date_match)
-					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "Comment", i - 1, due_date_start - 1, -1)
-				end
-
-				if overdue_match then
-					local overdue_start = line:find("%[OVERDUE%]")
-					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "ErrorMsg", i - 1, overdue_start - 1, -1)
-				end
+				-- Due date and overdue highlights
+				highlight_pattern(line, line_nr, "%[@%d+/%d+/%d+%]", "Comment")
+				highlight_pattern(line, line_nr, "%[OVERDUE%]", "ErrorMsg")
 			end
 		elseif line:match("Filtered by:") then
-			vim.api.nvim_buf_add_highlight(buf_id, ns_id, "WarningMsg", i - 1, 0, -1)
+			add_hl(line_nr, 0, -1, "WarningMsg")
 		end
 	end
 
