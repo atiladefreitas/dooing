@@ -60,7 +60,6 @@ function M.toggle_todo(index)
 end
 
 -- Parse date string in the format MM/DD/YYYY
--- @TODO: handle `format` -> a custom date format
 local function parse_date(date_str, format)
 	local month, day, year = date_str:match("^(%d%d?)/(%d%d?)/(%d%d%d%d)$")
 
@@ -189,6 +188,35 @@ function M.delete_completed()
 	save_todos()
 end
 
+-- Helper function for hashing a todo object
+local function gen_hash(todo)
+	local todo_string = vim.inspect(todo)
+	return vim.fn.sha256(todo_string)
+end
+
+-- Remove duplicate todos based on hash
+function M.remove_duplicates()
+	local seen = {}
+	local uniques = {}
+	local removed = 0
+
+	for _, todo in ipairs(M.todos) do
+		if type(todo) == "table" then
+			local hash = gen_hash(todo)
+			if not seen[hash] then
+				seen[hash] = true
+				table.insert(uniques, todo)
+			else
+				removed = removed + 1
+			end
+		end
+	end
+
+	M.todos = uniques
+	save_todos()
+	return tostring(removed)
+end
+
 -- Calculate priority score for a todo item
 function M.get_priority_score(todo)
 	if todo.done then
@@ -278,6 +306,44 @@ function M.search_todos(query)
 	end
 
 	return results
+end
+
+function M.import_todos(file_path)
+	local file = io.open(file_path, "r")
+	if not file then
+		return false, "Could not open file: " .. file_path
+	end
+
+	local content = file:read("*all")
+	file:close()
+
+	local status, imported_todos = pcall(vim.fn.json_decode, content)
+	if not status then
+		return false, "Error parsing JSON file"
+	end
+
+	-- merge imported todos with existing todos
+	for _, todo in ipairs(imported_todos) do
+		table.insert(M.todos, todo)
+	end
+
+	M.sort_todos()
+	M.save_todos()
+
+	return true, string.format("Imported %d todos", #imported_todos)
+end
+
+function M.export_todos(file_path)
+	local file = io.open(file_path, "w")
+	if not file then
+		return false, "Could not open file for writing: " .. file_path
+	end
+
+	local json_content = vim.fn.json_encode(M.todos)
+	file:write(json_content)
+	file:close()
+
+	return true, string.format("Exported %d todos to %s", #M.todos, file_path)
 end
 
 -- Helper function to get the priority-based highlights

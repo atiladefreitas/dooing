@@ -48,9 +48,9 @@ Dooing comes with sensible defaults that you can override:
 ```lua
 {
     -- Core settings
-    save_path = vim.fn.stdpath('data') .. '/dooing_todos.json',
-    
-    -- Window appearance
+	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
+
+    -- Window settings
     window = {
         width = 55,         -- Width of the floating window
         height = 20,        -- Height of the floating window
@@ -120,20 +120,43 @@ Dooing comes with sensible defaults that you can override:
     },
     hour_score_value = 1/8,         -- Priority score adjustment based on estimated hours
 
-    -- Calendar settings
-    calendar = {
-        language = "en",             -- Calendar language ("en" or "pt")
-        keymaps = {
-            previous_day = "h",      -- Move to previous day
-            next_day = "l",          -- Move to next day
-            previous_week = "k",     -- Move to previous week
-            next_week = "j",         -- Move to next week
-            previous_month = "H",    -- Move to previous month
-            next_month = "L",        -- Move to next month
-            select_day = "<CR>",     -- Select the current day
-            close_calendar = "q",    -- Close the calendar
-        },
-    },
+    -- Default keymaps
+	keymaps = {
+		toggle_window = "<leader>td",
+		new_todo = "i",
+		toggle_todo = "x",
+		delete_todo = "d",
+		delete_completed = "D",
+		close_window = "q",
+		add_due_date = "H",
+		remove_due_date = "r",
+		toggle_help = "?",
+		toggle_tags = "t",
+		clear_filter = "c",
+		edit_todo = "e",
+		edit_tag = "e",
+		delete_tag = "d",
+		search_todos = "/",
+		import_todos = "I",
+		export_todos = "E",
+		remove_duplicates = "<leader>D",
+	},
+
+    -- Calendar options
+	calendar = {
+		language = "en",
+		icon = "",
+		keymaps = {
+			previous_day = "h",
+			next_day = "l",
+			previous_week = "k",
+			next_week = "j",
+			previous_month = "H",
+			next_month = "L",
+			select_day = "<CR>",
+			close_calendar = "q",
+		},
+	},
 }
 ```
 
@@ -163,14 +186,19 @@ Dooing comes with intuitive keybindings:
 | `x`          | Toggle todo status         |
 | `d`          | Delete current todo        |
 | `D`          | Delete all completed todos |
-| `h`          | Add due date               |
-| `r`          | Remove due date            |
 | `q`          | Close window               |
+| `H`          | Add due date               |
+| `r`          | Remove due date            |
 | `?`          | Toggle help window         |
 | `t`          | Toggle tags window         |
 | `c`          | Clear active tag filter    |
 | `e`          | Edit todo                  |
 | `/`          | Toggle todo searching      |
+| `I`          | Import todos               |
+| `E`          | Export todos               |
+| `<leader>D`  | Remove duplicates          |
+
+
 
 #### Tags Window
 | Key    | Action        |
@@ -215,7 +243,7 @@ Planned features and improvements for future versions of Dooing:
 #### Quality of Life
 
 - [ ] Multiple Todo Lists
-- [ ] Import/Export Features
+- [X] Import/Export Features
 
 ---
 

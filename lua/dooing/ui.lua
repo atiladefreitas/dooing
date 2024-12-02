@@ -1,4 +1,4 @@
----@diagnostic disable: undefined-global, param-type-mismatch
+---@diagnostic disable: undefined-global, param-type-mismatch, deprecated
 -- Explicitly declare vim as a global variable
 local vim = vim
 
@@ -141,8 +141,8 @@ edit_todo = function()
 	local todo_index = cursor[1] - 1
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
 
-	local done_icon = config.options.icons.done
-	local pending_icon = config.options.icons.pending
+	local done_icon = config.options.formatting.done.icon
+	local pending_icon = config.options.formatting.pending.icon
 
 	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 		if state.active_filter then
@@ -204,20 +204,23 @@ create_help_window = function()
 
 	local help_content = {
 		" Main window:",
-		" i     - Add new to-do",
-		" x     - Toggle to-do status",
-		" h     - Add due date to to-do ",
-		" r     - Remove to-do due date",
-		" T     - Add time estimation",
+		" i           - Add new to-do",
+		" x           - Toggle to-do status",
+		" d           - Delete current to-do",
+		" D           - Delete all completed todos",
+		" q           - Close window",
+		" H           - Add due date to to-do ",
+		" r           - Remove to-do due date",
+   	" T     - Add time estimation",
 		" R     - Remove time estimation",
-		" d     - Delete current to-do",
-		" D     - Delete all completed todos",
-		" ?     - Toggle this help window",
-		" q     - Close window",
-		" t     - Toggle tags window",
-		" e     - Edit to-do item",
-		" c     - Clear active tag filter",
-		" /     - Search todos",
+		" ?           - Toggle this help window",
+		" t           - Toggle tags window",
+		" c           - Clear active tag filter",
+		" e           - Edit to-do item",
+		" /           - Search todos",
+		" I           - Import todos",
+		" E           - Export todos",
+		" <leader>D   - Remove duplicates",
 		" ",
 		" Tags window:",
 		" e     - Edit tag",
@@ -257,6 +260,60 @@ create_help_window = function()
 
 	vim.keymap.set("n", config.options.keymaps.close_window, close_help, { buffer = help_buf_id, nowait = true })
 	vim.keymap.set("n", config.options.keymaps.toggle_help, close_help, { buffer = help_buf_id, nowait = true })
+end
+
+local function prompt_export()
+	local default_path = vim.fn.expand("~/todos.json")
+
+	vim.ui.input({
+		prompt = "Export todos to file: ",
+		default = default_path,
+		completion = "file",
+	}, function(file_path)
+		if not file_path or file_path == "" then
+			vim.notify("Export cancelled", vim.log.levels.INFO)
+			return
+		end
+
+		-- expand ~ to full home directory path
+		file_path = vim.fn.expand(file_path)
+
+		local success, message = state.export_todos(file_path)
+		if success then
+			vim.notify(message, vim.log.levels.INFO)
+		else
+			vim.notify(message, vim.log.levels.ERROR)
+		end
+	end)
+end
+
+local function prompt_import(callback)
+	local default_path = vim.fn.expand("~/todos.json")
+
+	vim.ui.input({
+		prompt = "Import todos from file: ",
+		default = default_path,
+		completion = "file",
+	}, function(file_path)
+		if not file_path or file_path == "" then
+			vim.notify("Import cancelled", vim.log.levels.INFO)
+			return
+		end
+
+		-- expand ~ to full home directory path
+		file_path = vim.fn.expand(file_path)
+
+		local success, message = state.import_todos(file_path)
+		if success then
+			vim.notify(message, vim.log.levels.INFO)
+			if callback then
+				callback()
+			end
+			M.render_todos()
+		else
+			vim.notify(message, vim.log.levels.ERROR)
+		end
+	end)
 end
 
 -- Creates and manages the tags window
@@ -360,8 +417,8 @@ local function handle_search_query(query)
 		return
 	end
 
-	local done_icon = config.options.icons.done
-	local pending_icon = config.options.icons.pending
+	local done_icon = config.options.formatting.done.icon
+	local pending_icon = config.options.formatting.pending.icon
 
 	-- Prepare the search results
 	local results = state.search_todos(query)
@@ -638,6 +695,9 @@ local function create_window()
 	set_conditional_keymap("remove_due_date", remove_due_date, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("add_time_estimation", add_time_estimation, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("remove_time_estimation", remove_time_estimation, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("import_todos", prompt_import, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("export_todos", prompt_export, { buffer = buf_id, nowait = true })
+	set_conditional_keymap("remove_duplicates", M.remove_duplicates, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("search_todos", create_search_window, { buffer = buf_id, nowait = true })
 	set_conditional_keymap("clear_filter", function()
 		state.set_filter(nil)
@@ -648,36 +708,33 @@ end
 -- Public Interface
 --------------------------------------------------
 
-function M.render_todos()
-	if not buf_id then
-		return
+-- Helper function for formatting based on format config
+local function render_todo(todo, formatting, lang)
+	if not formatting or not formatting.pending or not formatting.done then
+		error("Invalid 'formatting' configuration in config.lua")
 	end
 
-	vim.api.nvim_buf_set_option(buf_id, "modifiable", true)
-	vim.api.nvim_buf_clear_namespace(buf_id, ns_id, 0, -1)
+	local components = {}
 
-	local lines = { "" }
-	state.sort_todos()
+	-- Get config formatting
+	local format = todo.done and formatting.done.format or formatting.pending.format
+	if not format then
+		format = { "icon", "text", "ect" } -- Default format: icon, text, and estimated completion time
+	end
 
-	local lang = calendar and calendar.get_language()
-
-	local done_icon = config.options.icons.done
-	local pending_icon = config.options.icons.pending
-
-	for _, todo in ipairs(state.todos) do
-		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
-			local check_icon = todo.done and done_icon or pending_icon
-
-			local text = todo.text
-
+	-- Breakdown config format and get dynamic text based on other configs
+	for _, part in ipairs(format) do
+		if part == "icon" then
+			table.insert(components, todo.done and formatting.done.icon or formatting.pending.icon)
+		elseif part == "text" then
+			table.insert(components, todo.text)
+		elseif part == "due_date" then
 			-- Format due date if exists
-			local due_date_str = ""
 			if todo.due_at then
 				local date = os.date("*t", todo.due_at)
 				local month = calendar.MONTH_NAMES[lang][date.month]
-
 				local formatted_date
-				if lang == "pt" or lang == "en" then
+				if lang == "pt" or lang == "es" then
 					formatted_date = string.format("%d de %s de %d", date.day, month, date.year)
 				elseif lang == "fr" then
 					formatted_date = string.format("%d %s %d", date.day, month, date.year)
@@ -685,39 +742,71 @@ function M.render_todos()
 					formatted_date = string.format("%d %s %d", date.day, month, date.year)
 				elseif lang == "jp" then
 					formatted_date = string.format("%d年%s%d日", date.year, month, date.day)
-				else -- "en"
+				else
 					formatted_date = string.format("%s %d, %d", month, date.day, date.year)
 				end
-				due_date_str = " [" .. config.options.icons.calendar .. " " .. formatted_date .. "]"
-
-				-- Highlight overdue todos
+				local due_date_str
+				if config.options.calendar.icon ~= "" then
+					due_date_str = "[" .. config.options.calendar.icon .. " " .. formatted_date .. "]"
+				else
+					due_date_str = "[" .. formatted_date .. "]"
+				end
 				local current_time = os.time()
 				if not todo.done and todo.due_at < current_time then
 					due_date_str = due_date_str .. " [OVERDUE]"
 				end
+				table.insert(components, due_date_str)
 			end
+		elseif part == "priority" then
+			local score = state.get_priority_score(todo)
+			table.insert(components, string.format("Priority: %d", score))
+    elseif part == "ect" then
+      if todo.estimated_hours then
+        local time_str
+        if todo.estimated_hours >= 168 then -- more than a week
+           local weeks = todo.estimated_hours / 168
+           time_str = string.format("[≈ %gw]", weeks)
+        elseif todo.estimated_hours >= 24 then -- more than a day
+          local days = todo.estimated_hours / 24
+          time_str = string.format("[≈ %gd]", days)
+        elseif todo.estimated_hours >= 1 then -- more than an hour
+          time_str = string.format("[≈ %gh]", todo.estimated_hours)
+        else -- less than an hour
+          time_str = string.format("[≈ %gm]", todo.estimated_hours * 60)
+        end
+          table.insert(components, time_str)
+        end
+    end
+	end
 
-			-- Format time estimation if exists
-			local time_str = ""
-			if todo.estimated_hours then
-				if todo.estimated_hours >= 168 then -- more than a week
-					local weeks = todo.estimated_hours / 168
-					time_str = string.format(" [≈ %gw]", weeks)
-				elseif todo.estimated_hours >= 24 then -- more than a day
-					local days = todo.estimated_hours / 24
-					time_str = string.format(" [≈ %gd]", days)
-				elseif todo.estimated_hours >= 1 then -- more than an hour
-					time_str = string.format(" [≈ %gh]", todo.estimated_hours)
-				else -- less than an hour
-					time_str = string.format(" [≈ %gm]", todo.estimated_hours * 60)
-				end
-			end
+	-- Join the components into a single string
+	return table.concat(components, " ")
+end
 
-			if todo.done then
-				text = "~" .. text .. "~"
-			end
+-- Main function for todos rendering
+function M.render_todos()
+	if not buf_id then
+		return
+	end
 
-			table.insert(lines, "  " .. check_icon .. " " .. text .. due_date_str .. time_str)
+	-- Create the buffer
+	vim.api.nvim_buf_set_option(buf_id, "modifiable", true)
+	vim.api.nvim_buf_clear_namespace(buf_id, ns_id, 0, -1)
+	local lines = { "" }
+
+	-- Sort todos and get config
+	state.sort_todos()
+	local lang = calendar and calendar.get_language()
+	local formatting = config.options.formatting
+	local done_icon = config.options.formatting.done.icon
+	local pending_icon = config.options.formatting.pending.icon
+
+	-- Loop through all todos and render them using the format
+	for _, todo in ipairs(state.todos) do
+		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
+			-- use the appropriate format based on the todo's status and lang
+			local todo_text = render_todo(todo, formatting, lang)
+			table.insert(lines, "  " .. todo_text)
 		end
 	end
 
@@ -727,6 +816,7 @@ function M.render_todos()
 	end
 
 	table.insert(lines, "")
+
 	vim.api.nvim_buf_set_lines(buf_id, 0, -1, false, lines)
 
 	-- Helper function to add highlight
@@ -889,10 +979,10 @@ function M.new_todo()
 
 					for i = 1, total_lines do
 						local line = vim.api.nvim_buf_get_lines(buf_id, i - 1, i, false)[1]
-						if line:match("^%s+[" .. config.options.icons.pending .. "]") then
+						if line:match("^%s+[" .. config.options.formatting.pending.icon .. "]") then
 							last_uncompleted_line = i
 						end
-						if line:match("^%s+[" .. config.options.icons.done .. "].*~") then
+						if line:match("^%s+[" .. config.options.formatting.done.icon .. "].*~") then
 							target_line = i - 1
 							break
 						end
@@ -920,8 +1010,8 @@ function M.toggle_todo()
 	local cursor = vim.api.nvim_win_get_cursor(win_id)
 	local todo_index = cursor[1] - 1
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
-	local done_icon = config.options.icons.done
-	local pending_icon = config.options.icons.pending
+	local done_icon = config.options.formatting.done.icon
+	local pending_icon = config.options.formatting.pending.icon
 
 	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 		if state.active_filter then
@@ -947,8 +1037,8 @@ function M.delete_todo()
 	local cursor = vim.api.nvim_win_get_cursor(win_id)
 	local todo_index = cursor[1] - 1
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
-	local done_icon = config.options.icons.done
-	local pending_icon = config.options.icons.pending
+	local done_icon = config.options.formatting.done.icon
+	local pending_icon = config.options.formatting.pending.icon
 
 	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
 		if state.active_filter then
@@ -972,6 +1062,13 @@ end
 -- Deletes all completed todos
 function M.delete_completed()
 	state.delete_completed()
+	M.render_todos()
+end
+
+-- Delete all duplicated todos
+function M.remove_duplicates()
+	local dups = state.remove_duplicates()
+	vim.notify("Removed " .. dups .. " duplicates.", vim.log.levels.INFO)
 	M.render_todos()
 end
 

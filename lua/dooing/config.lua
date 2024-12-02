@@ -13,10 +13,15 @@ M.defaults = {
 			right = 2,
 		},
 	},
-	icons = {
-		pending = "○",
-		done = "✓",
-		calendar = "",
+	formatting = {
+		pending = {
+			icon = "○",
+			format = { "icon", "text", "due_date" },
+		},
+		done = {
+			icon = "✓",
+			format = { "icon", "text", "due_date" },
+		},
 	},
 	priorities = {
 		{
@@ -54,7 +59,7 @@ M.defaults = {
 		delete_todo = "d",
 		delete_completed = "D",
 		close_window = "q",
-		add_due_date = "h",
+		add_due_date = "H",
 		remove_due_date = "r",
 		toggle_help = "?",
 		toggle_tags = "t",
@@ -65,10 +70,13 @@ M.defaults = {
 		search_todos = "/",
 		add_time_estimation = "T",
 		remove_time_estimation = "R",
-		toggle_priority = "<Space>",
+		import_todos = "I",
+		export_todos = "E",
+		remove_duplicates = "<leader>D",
 	},
 	calendar = {
 		language = "en",
+		icon = "",
 		keymaps = {
 			previous_day = "h",
 			next_day = "l",
