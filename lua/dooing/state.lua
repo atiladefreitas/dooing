@@ -195,18 +195,8 @@ function M.get_priority_score(todo)
 		return 0
 	end
 
-	local offset = 0
-
-	-- Due date offset
-	local current_time = os.time()
-	if todo.due_at and todo.due_at < current_time then
-		offset = offset + (config.options.due_score_offset or 0)
-	end
-
-	-- Add more offsets here in the future...
-
 	if not config.options.priorities or #config.options.priorities == 0 then
-		return offset
+		return 0
 	end
 
 	-- Calculate base score from priorities
@@ -223,25 +213,35 @@ function M.get_priority_score(todo)
 		ect_multiplier = 1 / (todo.estimated_hours * config.options.hour_score_value)
 	end
 
-	-- Apply multiplier to total score (base score + offset)
-	return (score + offset) * ect_multiplier
+	return score * ect_multiplier
 end
 
 function M.sort_todos()
 	table.sort(M.todos, function(a, b)
-		-- If priorities are configured, sort by priority first
+		-- First sort by completion status
+		if a.done ~= b.done then
+			return not a.done -- Undone items come first
+		end
+
+		-- Then sort by priority score if configured
 		if config.options.priorities and #config.options.priorities > 0 then
 			local a_score = M.get_priority_score(a)
 			local b_score = M.get_priority_score(b)
 
 			if a_score ~= b_score then
-				return a_score > b_score -- Higher score = higher priority
+				return a_score > b_score
 			end
 		end
 
-		-- Then sort by completion status
-		if a.done ~= b.done then
-			return not a.done -- Undone items come first
+		-- Then sort by due date if both have one
+		if a.due_at and b.due_at then
+			if a.due_at ~= b.due_at then
+				return a.due_at < b.due_at
+			end
+		elseif a.due_at then
+			return true -- Items with due date come first
+		elseif b.due_at then
+			return false
 		end
 
 		-- Finally sort by creation time
