@@ -52,15 +52,22 @@ Dooing comes with sensible defaults that you can override:
     
     -- Window appearance
     window = {
-        width = 40,         -- Width of the floating window
+        width = 55,         -- Width of the floating window
         height = 20,        -- Height of the floating window
         border = 'rounded', -- Border style
+        padding = {
+            top = 1,
+            bottom = 1,
+            left = 2,
+            right = 2,
+        },
     },
     
     -- Icons
     icons = {
         pending = '○',      -- Pending todo icon
         done = '✓',        -- Completed todo icon
+        calendar = '',    -- Calendar icon
     },
     
     -- Keymaps
@@ -83,37 +90,35 @@ Dooing comes with sensible defaults that you can override:
         toggle_priority = "<Space>"  -- Toggle todo priority on creation
     },
 
-    prioritization = false,
-	priorities = {                   -- Defines priorities one can assign to tasks
-		{
-			name = "important",
-			weight = 4,              -- Weight of each priority. E.g. here, `important` is ranked higher than `urgent`.
-		},
-		{
-			name = "urgent",
-			weight = 2,
-		},
-	},
-	priority_thresholds = {
-		{
-			min = 5, -- Corresponds to `urgent` and `important` tasks
-			max = 999,
-			color = nil,
-			hl_group = "DiagnosticError",
-		},
-		{
-			min = 3, -- Corresponds to `important` tasks
-			max = 4,
-			color = nil,
-			hl_group = "DiagnosticWarn",
-		},
-		{
-			min = 1, -- Corresponds to `urgent tasks`
-			max = 2,
-			color = nil,
-			hl_group = "DiagnosticInfo",
-		},
-	},
+    -- Priority settings
+    priorities = {                   -- Define available priorities
+        {
+            name = "important",
+            weight = 4,              -- Higher weight = higher priority
+        },
+        {
+            name = "urgent",
+            weight = 2,
+        },
+    },
+    priority_groups = {              -- Define highlight groups for priority combinations
+        high = {
+            members = { "important", "urgent" },
+            color = nil,             -- Custom color (hex) or nil to use hl_group
+            hl_group = "DiagnosticError",
+        },
+        medium = {
+            members = { "important" },
+            color = nil,
+            hl_group = "DiagnosticWarn",
+        },
+        low = {
+            members = { "urgent" },
+            color = nil,
+            hl_group = "DiagnosticInfo",
+        },
+    },
+    hour_score_value = 1/8,         -- Priority score adjustment based on estimated hours
 
     -- Calendar settings
     calendar = {
@@ -134,11 +139,15 @@ Dooing comes with sensible defaults that you can override:
 
 ## Commands
 
-Dooing can be controlled through user commands:
+Dooing provides several commands for task management:
 
-- `:Dooing` opens the main window,
-- `:Dooing add Your Simple Task`, adds a task.
-- `:Dooing -p important,urgent Your Important and Urgent task`, assigns priority to it.
+- `:Dooing` - Opens the main window
+- `:Dooing add [text]` - Adds a new task
+  - `-p, --priorities [list]` - Comma-separated list of priorities (e.g. "important,urgent")
+- `:Dooing list` - Lists all todos with their indices and metadata
+- `:Dooing set [index] [field] [value]` - Modifies todo properties
+  - `priorities` - Set/update priorities (use "nil" to clear)
+  - `ect` - Set estimated completion time (e.g. "2h", "1d", "0.5w")
 
 ---
 
