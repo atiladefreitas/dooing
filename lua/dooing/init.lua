@@ -18,13 +18,13 @@ function M.setup(opts)
 		table.remove(args, 1) -- Remove command
 
 		if command == "add" then
-			-- Parse priorities if -p or --priority flag is present
+			-- Parse priorities if -p or --priorities flag is present
 			local priorities = nil
 			local todo_text = ""
 
 			local i = 1
 			while i <= #args do
-				if args[i] == "-p" or args[i] == "--priority" then
+				if args[i] == "-p" or args[i] == "--priorities" then
 					if i + 1 <= #args then
 						-- Get and validate priorities
 						local priority_str = args[i + 1]
@@ -125,7 +125,7 @@ function M.setup(opts)
 			local field = args[2]
 			local value = args[3]
 
-			if field == "priority" then
+			if field == "priorities" then
 				-- Handle priority setting
 				if value == "nil" then
 					-- Clear priorities
@@ -189,14 +189,14 @@ function M.setup(opts)
 			if #args <= 2 then
 				return { "add", "list", "set" }
 			elseif args[1] == "set" and #args == 3 then
-				return { "priority", "ect" }
-			elseif args[1] == "set" and (args[3] == "priority") then
+				return { "priorities", "ect" }
+			elseif args[1] == "set" and (args[3] == "priorities") then
 				local priorities = { "nil" } -- Add nil as an option
 				for _, p in ipairs(config.options.priorities) do
 					table.insert(priorities, p.name)
 				end
 				return priorities
-			elseif args[#args - 1] == "-p" or args[#args - 1] == "--priority" then
+			elseif args[#args - 1] == "-p" or args[#args - 1] == "--priorities" then
 				-- Return available priorities for completion
 				local priorities = {}
 				for _, p in ipairs(config.options.priorities) do
@@ -204,7 +204,7 @@ function M.setup(opts)
 				end
 				return priorities
 			elseif #args == 3 then
-				return { "-p", "--priority" }
+				return { "-p", "--priorities" }
 			end
 			return {}
 		end,
