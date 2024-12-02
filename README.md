@@ -147,7 +147,7 @@ Dooing provides several commands for task management:
 - `:Dooing list` - Lists all todos with their indices and metadata
 - `:Dooing set [index] [field] [value]` - Modifies todo properties
   - `priorities` - Set/update priorities (use "nil" to clear)
-  - `ect` - Set estimated completion time (e.g. "2h", "1d", "0.5w")
+  - `ect` - Set estimated completion time (e.g. "30m", "2h", "1d", "0.5w")
 
 ---
 
