@@ -90,14 +90,25 @@ function M.setup(opts)
 			-- Print all todos with their indices
 			for i, todo in ipairs(state.todos) do
 				local status = todo.done and "✓" or "○"
-				local priorities = todo.priorities and " [" .. table.concat(todo.priorities, ",") .. "]" or ""
-				local ect = todo.estimated_hours and string.format(" [≈ %.1fh]", todo.estimated_hours) or ""
+
+				-- Build metadata string
+				local metadata = {}
+				if todo.priorities and #todo.priorities > 0 then
+					table.insert(metadata, "priorities: " .. table.concat(todo.priorities, ", "))
+				end
+				if todo.due_date then
+					table.insert(metadata, "due: " .. todo.due_date)
+				end
+				if todo.estimated_hours then
+					table.insert(metadata, string.format("estimate: %.1fh", todo.estimated_hours))
+				end
+
 				local score = state.get_priority_score(todo)
-				local score_text = string.format(" (score: %.1f)", score)
-				vim.notify(
-					string.format("%d. %s %s%s%s%s", i, status, todo.text, priorities, ect, score_text),
-					vim.log.levels.INFO
-				)
+				table.insert(metadata, string.format("score: %.1f", score))
+
+				local metadata_text = #metadata > 0 and " (" .. table.concat(metadata, ", ") .. ")" or ""
+
+				vim.notify(string.format("%d. %s %s%s", i, status, todo.text, metadata_text), vim.log.levels.INFO)
 			end
 		elseif command == "set" then
 			if #args < 3 then
