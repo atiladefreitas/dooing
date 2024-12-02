@@ -703,29 +703,59 @@ function M.render_todos()
 				if todo.done then
 					vim.api.nvim_buf_add_highlight(buf_id, ns_id, "DooingDone", i - 1, 0, -1)
 				else
+					-- Log todo priorities
+					if todo.priorities then
+						vim.notify(
+							string.format(
+								"Todo '%s' has priorities: %s",
+								todo.text,
+								table.concat(todo.priorities, ", ")
+							),
+							vim.log.levels.INFO
+						)
+					else
+						vim.notify(string.format("Todo '%s' has no priorities", todo.text), vim.log.levels.INFO)
+					end
+
+					-- Log configured priority groups
+					if config.options.priorities then
+						local groups = {}
+						for _, group in ipairs(config.options.priorities) do
+							table.insert(
+								groups,
+								string.format(
+									"%s (color: %s, hl_group: %s)",
+									group.name,
+									group.color or "none",
+									group.hl_group or "none"
+								)
+							)
+						end
+						vim.notify(
+							string.format("Configured priority groups:\n%s", table.concat(groups, "\n")),
+							vim.log.levels.INFO
+						)
+					else
+						vim.notify("No priority groups configured", vim.log.levels.INFO)
+					end
+
 					-- Find matching priority group based on todo's priorities
-					local matching_group = nil
-					if todo.priorities and #todo.priorities > 0 then
-						for _, group in ipairs(config.options.priority_groups or {}) do
-							-- Check if any of the todo's priorities match any of the group's members
-							for _, priority in ipairs(todo.priorities) do
-								for _, member in ipairs(group.members or {}) do
-									if priority == member then
-										matching_group = group
-										break
-									end
+					if todo.priorities and config.options.priorities then
+						for _, priority in ipairs(todo.priorities) do
+							for _, group in ipairs(config.options.priorities) do
+								if group.name == priority then
+									vim.notify(
+										string.format(
+											"Found matching priority group '%s' for todo '%s'",
+											group.name,
+											todo.text
+										),
+										vim.log.levels.INFO
+									)
 								end
-								if matching_group then
-									break
-								end
-							end
-							if matching_group then
-								break
 							end
 						end
 					end
-					local hl_group = get_priority_highlight(matching_group)
-					vim.api.nvim_buf_add_highlight(buf_id, ns_id, hl_group, i - 1, 0, -1)
 				end
 
 				-- Highlight tags
