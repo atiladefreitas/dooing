@@ -481,10 +481,11 @@ end
 
 -- Parse time estimation string (e.g., "2h", "1d", "0.5w")
 function M.parse_time_estimation(time_str)
-	local number, unit = time_str:match("^(%d+%.?%d*)([hdw])$")
+	local number, unit = time_str:match("^(%d+%.?%d*)([mhdw])$")
 
 	if not (number and unit) then
-		return nil, "Invalid format. Use number followed by h (hours), d (days), or w (weeks). E.g., 2h, 1d, 0.5w"
+		return nil,
+			"Invalid format. Use number followed by m (minutes), h (hours), d (days), or w (weeks). E.g., 30m, 2h, 1d, 0.5w"
 	end
 
 	local hours = tonumber(number)
@@ -493,7 +494,9 @@ function M.parse_time_estimation(time_str)
 	end
 
 	-- Convert to hours
-	if unit == "d" then
+	if unit == "m" then
+		hours = hours / 60
+	elseif unit == "d" then
 		hours = hours * 24
 	elseif unit == "w" then
 		hours = hours * 24 * 7
@@ -688,11 +691,15 @@ function M.render_todos()
 			local time_str = ""
 			if todo.estimated_hours then
 				if todo.estimated_hours >= 168 then -- more than a week
-					time_str = string.format(" [≈ %.1fw]", todo.estimated_hours / 168)
+					local weeks = todo.estimated_hours / 168
+					time_str = string.format(" [≈ %gw]", weeks)
 				elseif todo.estimated_hours >= 24 then -- more than a day
-					time_str = string.format(" [≈ %.1fd]", todo.estimated_hours / 24)
-				else
-					time_str = string.format(" [≈ %.1fh]", todo.estimated_hours)
+					local days = todo.estimated_hours / 24
+					time_str = string.format(" [≈ %gd]", days)
+				elseif todo.estimated_hours >= 1 then -- more than an hour
+					time_str = string.format(" [≈ %gh]", todo.estimated_hours)
+				else -- less than an hour
+					time_str = string.format(" [≈ %gm]", todo.estimated_hours * 60)
 				end
 			end
 
