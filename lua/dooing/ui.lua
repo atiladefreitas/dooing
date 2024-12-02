@@ -79,8 +79,18 @@ local function get_priority_highlight(priorities)
 		return highlight_cache.pending
 	end
 
-	-- Find matching priority group based on priorities
-	for _, group in pairs(config.options.priority_groups) do
+	-- Sort priority groups by number of members (descending)
+	local sorted_groups = {}
+	for name, group in pairs(config.options.priority_groups) do
+		table.insert(sorted_groups, { name = name, group = group })
+	end
+	table.sort(sorted_groups, function(a, b)
+		return #a.group.members > #b.group.members
+	end)
+
+	-- Check priority groups from largest to smallest
+	for _, group_data in ipairs(sorted_groups) do
+		local group = group_data.group
 		-- Check if all group members are present in the priorities
 		local all_members_match = true
 		for _, member in ipairs(group.members) do
