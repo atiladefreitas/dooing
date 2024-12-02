@@ -705,25 +705,21 @@ function M.render_todos()
 				else
 					-- Find matching priority group based on todo's priorities
 					local matching_group = nil
-					if todo.priorities then
-						for _, group in ipairs(config.options.priority_groups) do
-							local all_members_match = true
-							-- Check if all group members are in todo's priorities
-							for _, member in ipairs(group.members) do
-								local found = false
-								for _, priority in ipairs(todo.priorities) do
+					if todo.priorities and #todo.priorities > 0 then
+						for _, group in ipairs(config.options.priority_groups or {}) do
+							-- Check if any of the todo's priorities match any of the group's members
+							for _, priority in ipairs(todo.priorities) do
+								for _, member in ipairs(group.members or {}) do
 									if priority == member then
-										found = true
+										matching_group = group
 										break
 									end
 								end
-								if not found then
-									all_members_match = false
+								if matching_group then
 									break
 								end
 							end
-							if all_members_match then
-								matching_group = group
+							if matching_group then
 								break
 							end
 						end
