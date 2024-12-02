@@ -67,11 +67,11 @@ Dooing comes with sensible defaults that you can override:
     formatting = {
         pending = {
             icon = "○",
-            format = { "icon", "text", "due_date" },
+            format = { "icon", "text", "due_date", "ect" },
         },
         done = {
             icon = "✓",
-            format = { "icon", "text", "due_date" },
+            format = { "icon", "text", "due_date", "ect" },
         },
     },
     
