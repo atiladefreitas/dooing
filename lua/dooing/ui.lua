@@ -183,7 +183,7 @@ create_help_window = function()
 
 	help_buf_id = vim.api.nvim_create_buf(false, true)
 
-	local width = 40
+	local width = 50
 	local height = 20
 	local ui = vim.api.nvim_list_uis()[1]
 	local col = math.floor((ui.width - width) / 2) + width + 2
@@ -211,8 +211,8 @@ create_help_window = function()
 		" q           - Close window",
 		" H           - Add due date to to-do ",
 		" r           - Remove to-do due date",
-		" T     - Add time estimation",
-		" R     - Remove time estimation",
+		" T           - Add time estimation",
+		" R           - Remove time estimation",
 		" ?           - Toggle this help window",
 		" t           - Toggle tags window",
 		" c           - Clear active tag filter",
