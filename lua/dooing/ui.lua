@@ -211,7 +211,7 @@ create_help_window = function()
 		" q           - Close window",
 		" H           - Add due date to to-do ",
 		" r           - Remove to-do due date",
-   	" T     - Add time estimation",
+		" T     - Add time estimation",
 		" R     - Remove time estimation",
 		" ?           - Toggle this help window",
 		" t           - Toggle tags window",
@@ -760,23 +760,23 @@ local function render_todo(todo, formatting, lang)
 		elseif part == "priority" then
 			local score = state.get_priority_score(todo)
 			table.insert(components, string.format("Priority: %d", score))
-    elseif part == "ect" then
-      if todo.estimated_hours then
-        local time_str
-        if todo.estimated_hours >= 168 then -- more than a week
-           local weeks = todo.estimated_hours / 168
-           time_str = string.format("[≈ %gw]", weeks)
-        elseif todo.estimated_hours >= 24 then -- more than a day
-          local days = todo.estimated_hours / 24
-          time_str = string.format("[≈ %gd]", days)
-        elseif todo.estimated_hours >= 1 then -- more than an hour
-          time_str = string.format("[≈ %gh]", todo.estimated_hours)
-        else -- less than an hour
-          time_str = string.format("[≈ %gm]", todo.estimated_hours * 60)
-        end
-          table.insert(components, time_str)
-        end
-    end
+		elseif part == "ect" then
+			if todo.estimated_hours then
+				local time_str
+				if todo.estimated_hours >= 168 then -- more than a week
+					local weeks = todo.estimated_hours / 168
+					time_str = string.format("[≈ %gw]", weeks)
+				elseif todo.estimated_hours >= 24 then -- more than a day
+					local days = todo.estimated_hours / 24
+					time_str = string.format("[≈ %gd]", days)
+				elseif todo.estimated_hours >= 1 then -- more than an hour
+					time_str = string.format("[≈ %gh]", todo.estimated_hours)
+				else -- less than an hour
+					time_str = string.format("[≈ %gm]", todo.estimated_hours * 60)
+				end
+				table.insert(components, time_str)
+			end
+		end
 	end
 
 	-- Join the components into a single string

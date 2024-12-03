@@ -63,6 +63,7 @@ M.defaults = {
 		remove_due_date = "r",
 		toggle_help = "?",
 		toggle_tags = "t",
+		toggle_priority = "<Space>",
 		clear_filter = "c",
 		edit_todo = "e",
 		edit_tag = "e",
