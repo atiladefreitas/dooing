@@ -19,6 +19,10 @@ M.defaults = {
 			icon = "○",
 			format = { "icon", "text", "due_date", "ect" },
 		},
+		in_progress = {
+			icon = "◐",
+			format = { "icon", "text", "due_date", "ect" },
+		},
 		done = {
 			icon = "✓",
 			format = { "icon", "text", "due_date", "ect" },

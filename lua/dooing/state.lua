@@ -44,6 +44,7 @@ function M.add_todo(text, priority_names)
 	table.insert(M.todos, {
 		text = text,
 		done = false,
+		in_progress = false,
 		category = text:match("#(%w+)") or "",
 		created_at = os.time(),
 		priorities = priority_names,
@@ -54,7 +55,18 @@ end
 
 function M.toggle_todo(index)
 	if M.todos[index] then
-		M.todos[index].done = not M.todos[index].done
+		-- Cycle through states: pending -> in_progress -> done -> pending
+		if not M.todos[index].in_progress and not M.todos[index].done then
+			-- From pending to in_progress
+			M.todos[index].in_progress = true
+		elseif M.todos[index].in_progress then
+			-- From in_progress to done
+			M.todos[index].in_progress = false
+			M.todos[index].done = true
+		else
+			-- From done back to pending
+			M.todos[index].done = false
+		end
 		save_todos()
 	end
 end
@@ -351,6 +363,11 @@ local function get_priority_highlights(todo)
 	-- First check if the todo is done
 	if todo.done then
 		return "DooingDone"
+	end
+
+	-- Then check if it's in progress
+	if todo.in_progress then
+		return "DooingInProgress"
 	end
 
 	-- If there are no priorities configured, return the default pending highlight

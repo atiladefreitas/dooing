@@ -143,8 +143,9 @@ edit_todo = function()
 
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
+	local in_progress_icon = config.options.formatting.in_progress.icon
 
-	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
+	if line_content:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
@@ -420,6 +421,7 @@ local function handle_search_query(query)
 
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
+	local in_progress_icon = config.options.formatting.in_progress.icon
 
 	-- Prepare the search results
 	local results = state.search_todos(query)
@@ -446,7 +448,7 @@ local function handle_search_query(query)
 
 	-- Highlight todos on search results
 	for i, line in ipairs(lines) do
-		if line:match("^%s+[" .. done_icon .. pending_icon .. "]") then
+		if line:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 			local hl_group = line:match(done_icon) and "DooingDone" or "DooingPending"
 			vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, hl_group, i - 1, 0, -1)
 			for tag in line:gmatch("#(%w+)") do
@@ -846,7 +848,15 @@ local function render_todo(todo, formatting, lang)
 	-- Breakdown config format and get dynamic text based on other configs
 	for _, part in ipairs(format) do
 		if part == "icon" then
-			table.insert(components, todo.done and formatting.done.icon or formatting.pending.icon)
+			local icon
+			if todo.done then
+				icon = formatting.done.icon
+			elseif todo.in_progress then
+				icon = formatting.in_progress.icon
+			else
+				icon = formatting.pending.icon
+			end
+			table.insert(components, icon)
 		elseif part == "text" then
 			table.insert(components, todo.text)
 		elseif part == "due_date" then
@@ -921,6 +931,7 @@ function M.render_todos()
 	local formatting = config.options.formatting
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
+	local in_progress_icon = config.options.formatting.in_progress.icon
 
 	-- Loop through all todos and render them using the format
 	for _, todo in ipairs(state.todos) do
@@ -955,7 +966,7 @@ function M.render_todos()
 
 	for i, line in ipairs(lines) do
 		local line_nr = i - 1
-		if line:match("^%s+[" .. done_icon .. pending_icon .. "]") then
+		if line:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 			local todo_index = i - (state.active_filter and 3 or 1)
 			local todo = state.todos[todo_index]
 
@@ -1133,8 +1144,9 @@ function M.toggle_todo()
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
+	local in_progress_icon = config.options.formatting.in_progress.icon
 
-	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
+	if line_content:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
@@ -1160,8 +1172,9 @@ function M.delete_todo()
 	local line_content = vim.api.nvim_buf_get_lines(buf_id, todo_index, todo_index + 1, false)[1]
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
+	local in_progress_icon = config.options.formatting.in_progress.icon
 
-	if line_content:match("^%s+[" .. done_icon .. pending_icon .. "]") then
+	if line_content:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
