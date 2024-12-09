@@ -222,6 +222,7 @@ create_help_window = function()
 		" I           - Import todos",
 		" E           - Export todos",
 		" <leader>D   - Remove duplicates",
+		" <leader>p   - Open todo scratchpad",
 		" ",
 		" Tags window:",
 		" e     - Edit tag",
@@ -646,6 +647,77 @@ local function remove_due_date()
 	end
 end
 
+local function open_todo_scratchpad()
+	local cursor = vim.api.nvim_win_get_cursor(win_id)
+	local todo_index = cursor[1] - 1
+	local todo = state.todos[todo_index]
+
+	if not todo then
+		vim.notify("No todo selected", vim.log.levels.WARN)
+		return
+	end
+
+	if todo.notes == nil then
+		todo.notes = ""
+	end
+
+	local scratch_buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_option(scratch_buf, "buftype", "acwrite")
+	vim.api.nvim_buf_set_option(scratch_buf, "swapfile", false)
+
+	local ui = vim.api.nvim_list_uis()[1]
+	local width = math.floor(ui.width * 0.6)
+	local height = math.floor(ui.height * 0.6)
+	local row = math.floor((ui.height - height) / 2)
+	local col = math.floor((ui.width - width) / 2)
+
+	local scratch_win = vim.api.nvim_open_win(scratch_buf, true, {
+		relative = "editor",
+		width = width,
+		height = height,
+		row = row,
+		col = col,
+		style = "minimal",
+		border = "rounded",
+		title = " Scratchpad ",
+		title_pos = "center",
+	})
+
+	local initial_notes = todo.notes or ""
+	vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, vim.split(initial_notes, "\n"))
+
+	local function close_notes()
+		if vim.api.nvim_win_is_valid(scratch_win) then
+			vim.api.nvim_win_close(scratch_win, true)
+		end
+
+		if vim.api.nvim_buf_is_valid(scratch_buf) then
+			vim.api.nvim_buf_delete(scratch_buf, { force = true })
+		end
+	end
+
+	local function save_notes()
+		local lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false)
+		local new_notes = table.concat(lines, "\n")
+
+		if new_notes ~= initial_notes then
+			todo.notes = new_notes
+			state.save_todos()
+			vim.notify("Notes saved", vim.log.levels.INFO)
+		end
+
+		close_notes()
+	end
+
+	vim.api.nvim_create_autocmd("WinLeave", {
+		buffer = scratch_buf,
+		callback = close_notes,
+	})
+
+	vim.keymap.set("n", "<CR>", save_notes, { buffer = scratch_buf })
+	vim.keymap.set("n", "<Esc>", close_notes, { buffer = scratch_buf })
+end
+
 -- Creates and configures the small keys window
 local function create_small_keys_window(main_win_pos)
 	if not config.options.quick_keys then
@@ -818,6 +890,7 @@ local function create_window()
 	setup_keymap("remove_due_date", remove_due_date)
 	setup_keymap("add_time_estimation", add_time_estimation)
 	setup_keymap("remove_time_estimation", remove_time_estimation)
+	setup_keymap("open_todo_scratchpad", open_todo_scratchpad)
 
 	-- Import/Export functionality
 	setup_keymap("import_todos", prompt_import)
@@ -830,7 +903,7 @@ end
 --------------------------------------------------
 
 -- Helper function for formatting based on format config
-local function render_todo(todo, formatting, lang)
+local function render_todo(todo, formatting, lang, notes_icon)
 	if not formatting or not formatting.pending or not formatting.done then
 		error("Invalid 'formatting' configuration in config.lua")
 	end
@@ -840,7 +913,7 @@ local function render_todo(todo, formatting, lang)
 	-- Get config formatting
 	local format = todo.done and formatting.done.format or formatting.pending.format
 	if not format then
-		format = { "icon", "text", "ect" } -- Default format: icon, text, and estimated completion time
+		format = { "notes_icon", "icon", "text", "ect" } -- Default format: notes icon, icon, text, and estimated completion time
 	end
 
 	-- Breakdown config format and get dynamic text based on other configs
@@ -849,6 +922,8 @@ local function render_todo(todo, formatting, lang)
 			table.insert(components, todo.done and formatting.done.icon or formatting.pending.icon)
 		elseif part == "text" then
 			table.insert(components, todo.text)
+		elseif part == "notes_icon" then
+			table.insert(components, notes_icon)
 		elseif part == "due_date" then
 			-- Format due date if exists
 			if todo.due_at then
@@ -921,12 +996,19 @@ function M.render_todos()
 	local formatting = config.options.formatting
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
+	local notes_icon = config.options.notes.icon
+	local tmp_notes_icon = ""
 
 	-- Loop through all todos and render them using the format
 	for _, todo in ipairs(state.todos) do
 		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
 			-- use the appropriate format based on the todo's status and lang
-			local todo_text = render_todo(todo, formatting, lang)
+			if todo.notes == nil or todo.notes == "" then
+				tmp_notes_icon = ""
+			else
+				tmp_notes_icon = notes_icon
+			end
+			local todo_text = render_todo(todo, formatting, lang, tmp_notes_icon)
 			table.insert(lines, "  " .. todo_text)
 		end
 	end

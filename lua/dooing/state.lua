@@ -48,6 +48,7 @@ function M.add_todo(text, priority_names)
 		created_at = os.time(),
 		priorities = priority_names,
 		estimated_hours = nil, -- Add estimated_hours field
+		notes = "",
 	})
 	save_todos()
 end
