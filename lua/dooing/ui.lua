@@ -398,7 +398,7 @@ create_help_window = function()
 		" Tags window:",
 		string.format(" %-12s - Edit tag", keys.edit_tag),
 		string.format(" %-12s - Delete tag", keys.delete_tag),
-		" <CR>  - Filter by tag",
+		string.format(" %-12s - Filter by tag", " <CR>"),
 		string.format(" %-12s - Close window", keys.close_window),
 		"",
 		" Calendar window:",
@@ -928,21 +928,21 @@ local function create_small_keys_window(main_win_pos)
 	-- Define two separate line arrays for each column
 	local lines_1 = {
 		"",
-		"  i - New todo",
-		"  x - Toggle todo",
-		"  d - Delete todo",
-		"  u - Undo delete",
-		"  H - Add due date",
+		string.format("  %-6s - New todo", keys.new_todo),
+		string.format("  %-6s - Toggle todo", keys.toggle_todo),
+		string.format("  %-6s - Delete todo", keys.delete_todo),
+		string.format("  %-6s - Undo delete", keys.undo_delete),
+		string.format("  %-6s - Add due date", keys.add_due_date),
 		"",
 	}
 
 	local lines_2 = {
 		"",
-		"  T - Add time",
-		"  t - Tags",
-		"  / - Search",
-		"  I - Import",
-		"  E - Export",
+		string.format("  %-6s - Add time", keys.add_time_estimation),
+		string.format("  %-6s - Tags", keys.toggle_tags),
+		string.format("  %-6s - Search", keys.search_todos),
+		string.format("  %-6s - Import", keys.import_todos),
+		string.format("  %-6s - Export", keys.export_todos),
 		"",
 	}
 
