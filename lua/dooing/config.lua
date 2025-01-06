@@ -76,6 +76,7 @@ M.defaults = {
 		clear_filter = "c",
 		edit_todo = "e",
 		edit_tag = "e",
+		edit_priority = "p",
 		delete_tag = "d",
 		search_todos = "/",
 		add_time_estimation = "T",
@@ -99,9 +100,9 @@ M.defaults = {
 			close_calendar = "q",
 		},
 	},
-  scratchpad = {
-    syntax_highlight = "markdown",
-  },
+	scratchpad = {
+		syntax_highlight = "markdown",
+	},
 }
 
 M.options = {}
