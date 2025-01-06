@@ -147,6 +147,7 @@ Main Window~
     t           Toggle tags window
     c           Clear active tag filter
     e           Edit todo
+    p           Edit priorities
     u           Undo deletion
     /           Search todos
     I           Import todos
