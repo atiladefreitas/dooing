@@ -922,6 +922,7 @@ local function create_small_keys_window(main_win_pos)
 		return nil
 	end
 
+	local keys = config.options.keymaps
 	local small_buf = vim.api.nvim_create_buf(false, true)
 	local width = config.options.window.width
 
