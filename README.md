@@ -106,6 +106,7 @@ Dooing comes with sensible defaults that you can override:
         clear_filter = "c",
         edit_todo = "e",
         edit_tag = "e",
+        edit_priorities = "p",
         delete_tag = "d",
         search_todos = "/",
         add_time_estimation = "T",
@@ -198,6 +199,7 @@ Dooing comes with intuitive keybindings:
 | `t`          | Toggle tags window           |
 | `c`          | Clear active tag filter      |
 | `e`          | Edit todo                    |
+| `p`          | Edit priorities              |
 | `u`          | Undo delete                  |
 | `/`          | Search todos                 |
 | `I`          | Import todos                 |
