@@ -437,7 +437,8 @@ function M.delete_todo_with_confirmation(todo_index, win_id, calendar, callback)
 	local confirm_buf = vim.api.nvim_create_buf(false, true)
 
 	-- Format todo text with due date
-	local todo_display_text = "   ○ " .. current_todo.text
+	local safe_todo_text = current_todo.text:gsub("\n", " ")
+	local todo_display_text = "   ○ " .. safe_todo_text
 	local lang = calendar.get_language()
 	lang = calendar.MONTH_NAMES[lang] and lang or "en"
 

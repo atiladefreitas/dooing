@@ -1012,7 +1012,7 @@ local function create_window()
 	local height = config.options.window.height
 	local position = config.options.window.position or "right"
 	local padding = 2 -- padding from screen edges
-	
+
 	-- Calculate position based on config
 	local col, row
 	if position == "right" then
@@ -1195,7 +1195,7 @@ local function render_todo(todo, formatting, lang, notes_icon)
 			end
 			table.insert(components, icon)
 		elseif part == "text" then
-			table.insert(components, todo.text)
+			table.insert(components, (todo.text:gsub("\n", " ")))
 		elseif part == "notes_icon" then
 			table.insert(components, notes_icon)
 		elseif part == "relative_time" then
@@ -1299,6 +1299,9 @@ function M.render_todos()
 
 	table.insert(lines, "")
 
+	for i, line in ipairs(lines) do
+		lines[i] = line:gsub("\n", " ")
+	end
 	vim.api.nvim_buf_set_lines(buf_id, 0, -1, false, lines)
 
 	-- Helper function to add highlight
@@ -1386,6 +1389,7 @@ end
 -- Creates a new todo item
 function M.new_todo()
 	vim.ui.input({ prompt = "New to-do: " }, function(input)
+		input = input:gsub("\n", " ")
 		if input and input ~= "" then
 			-- Check if priorities are configured
 			if config.options.priorities and #config.options.priorities > 0 then
