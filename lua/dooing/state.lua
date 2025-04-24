@@ -64,9 +64,12 @@ function M.toggle_todo(index)
 			-- From in_progress to done
 			M.todos[index].in_progress = false
 			M.todos[index].done = true
+			-- Track completion time
+			M.todos[index].completed_at = os.time()
 		else
 			-- From done back to pending
 			M.todos[index].done = false
+			M.todos[index].completed_at = nil
 		end
 		save_todos()
 	end
@@ -262,6 +265,14 @@ function M.sort_todos()
 		-- First sort by completion status
 		if a.done ~= b.done then
 			return not a.done -- Undone items come first
+		end
+
+		-- For completed items, sort by completion time (most recent first)
+		if config.options.done_sort_by_completed_time and a.done and b.done then
+			-- Use completed_at if available, otherwise fall back to created_at
+			local a_time = a.completed_at or a.created_at or 0
+			local b_time = b.completed_at or b.created_at or 0
+			return a_time > b_time -- Most recently completed first
 		end
 
 		-- Then sort by priority score if configured

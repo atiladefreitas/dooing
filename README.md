@@ -169,6 +169,7 @@ Dooing comes with sensible defaults that you can override:
         },
     },
     hour_score_value = 1/8,
+    done_sort_by_completed_time = false,
 }
 ```
 
