@@ -1482,19 +1482,24 @@ function M.new_todo()
 					state.add_todo(input, priorities_to_add)
 					M.render_todos()
 
-					-- Position cursor at the new todo
-					local total_lines = vim.api.nvim_buf_line_count(buf_id)
-					local target_line = nil
-					for i = 1, total_lines do
-						local line = vim.api.nvim_buf_get_lines(buf_id, i - 1, i, false)[1]
-						if line:match("^%s+" .. config.options.formatting.done.icon .. ".*~") then
-							target_line = i - 1
-							break
+					-- Make sure we're focusing on the main window
+					if win_id and vim.api.nvim_win_is_valid(win_id) then
+						vim.api.nvim_set_current_win(win_id)
+						
+						-- Position cursor at the new todo
+						local total_lines = vim.api.nvim_buf_line_count(buf_id)
+						local target_line = nil
+						for i = 1, total_lines do
+							local line = vim.api.nvim_buf_get_lines(buf_id, i - 1, i, false)[1]
+							if line:match("^%s+" .. config.options.formatting.pending.icon .. ".*" .. vim.pesc(input)) then
+								target_line = i
+								break
+							end
 						end
-					end
 
-					if target_line and win_id and vim.api.nvim_win_is_valid(win_id) then
-						vim.api.nvim_win_set_cursor(win_id, { target_line, 0 })
+						if target_line and win_id and vim.api.nvim_win_is_valid(win_id) then
+							vim.api.nvim_win_set_cursor(win_id, { target_line, 0 })
+						end
 					end
 				end, { buffer = select_buf, nowait = true })
 
@@ -1519,6 +1524,26 @@ function M.new_todo()
 				-- If prioritization is disabled, just add the todo without priority
 				state.add_todo(input)
 				M.render_todos()
+				
+				-- Make sure we're focusing on the main window
+				if win_id and vim.api.nvim_win_is_valid(win_id) then
+					vim.api.nvim_set_current_win(win_id)
+					
+					-- Position cursor at the new todo
+					local total_lines = vim.api.nvim_buf_line_count(buf_id)
+					local target_line = nil
+					for i = 1, total_lines do
+						local line = vim.api.nvim_buf_get_lines(buf_id, i - 1, i, false)[1]
+						if line:match("^%s+" .. config.options.formatting.pending.icon .. ".*" .. vim.pesc(input)) then
+							target_line = i
+							break
+						end
+					end
+					
+					if target_line and win_id and vim.api.nvim_win_is_valid(win_id) then
+						vim.api.nvim_win_set_cursor(win_id, { target_line, 0 })
+					end
+				end
 			end
 		end
 	end)
