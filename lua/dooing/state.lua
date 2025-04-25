@@ -121,6 +121,12 @@ function M.add_due_date(index, date_str)
 
 	local timestamp, err = parse_date(date_str)
 	if timestamp then
+    local date_table = os.date("*t", timestamp)
+    date_table.hour = 23
+    date_table.min = 59
+    date_table.sec = 59
+    timestamp = os.time(date_table)
+
 		M.todos[index].due_at = timestamp
 		M.save_todos()
 		return true
