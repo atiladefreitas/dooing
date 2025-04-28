@@ -123,6 +123,7 @@ Dooing comes with sensible defaults that you can override:
         export_todos = "E",
         remove_duplicates = "<leader>D",
         open_todo_scratchpad = "<leader>p",
+        refresh_todos = "f",
     },
 
     calendar = {

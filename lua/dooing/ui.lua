@@ -396,6 +396,7 @@ create_help_window = function()
 		string.format(" %-12s - Remove duplicates", keys.remove_duplicates),
 		string.format(" %-12s - Open todo scratchpad", keys.open_todo_scratchpad),
 		string.format(" %-12s - Toggle priority", keys.toggle_priority),
+		string.format(" %-12s - Refresh todo list", keys.toggle_priority),
 		"",
 		" Tags window:",
 		string.format(" %-12s - Edit tag", keys.edit_tag),
@@ -1105,6 +1106,7 @@ local function create_window()
 	setup_keymap("delete_todo", M.delete_todo)
 	setup_keymap("delete_completed", M.delete_completed)
 	setup_keymap("close_window", M.close_window)
+  setup_keymap("refresh_todos", M.reload_todos)
 	setup_keymap("undo_delete", function()
 		if state.undo_delete() then
 			M.render_todos()
@@ -1384,6 +1386,20 @@ function M.close_window()
 		win_id = nil
 		buf_id = nil
 	end
+end
+
+-- Check if the window is currently open
+function M.is_window_open()
+    return win_id ~= nil and vim.api.nvim_win_is_valid(win_id)
+end
+
+-- Function to reload todos and refresh UI if window is open
+function M.reload_todos()
+    state.load_todos()
+    if M.is_window_open() then
+        M.render_todos()
+        vim.notify("Todo list refreshed", vim.log.levels.INFO, { title = "Dooing" })
+    end
 end
 
 -- Creates a new todo item

@@ -90,6 +90,7 @@ M.defaults = {
 		export_todos = "E",
 		remove_duplicates = "<leader>D",
 		open_todo_scratchpad = "<leader>p",
+		refresh_todos = "f",
 	},
 	calendar = {
 		language = "en",
