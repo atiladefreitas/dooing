@@ -166,7 +166,7 @@ edit_todo = function()
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
-	if line_content:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
@@ -199,7 +199,7 @@ edit_priorities = function()
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
-	if line_content:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
@@ -632,7 +632,7 @@ local function handle_search_query(query)
 
 	-- Highlight todos on search results
 	for i, line in ipairs(lines) do
-		if line:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+		if line:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 			local hl_group = line:match(done_icon) and "DooingDone" or "DooingPending"
 			vim.api.nvim_buf_add_highlight(search_buf_id, ns_id, hl_group, i - 1, 0, -1)
 			for tag in line:gmatch("#(%w+)") do
@@ -1321,7 +1321,7 @@ function M.render_todos()
 
 	for i, line in ipairs(lines) do
 		local line_nr = i - 1
-		if line:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+		if line:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 			local todo_index = i - (state.active_filter and 3 or 1)
 			local todo = state.todos[todo_index]
 
@@ -1507,7 +1507,7 @@ function M.new_todo()
 						local target_line = nil
 						for i = 1, total_lines do
 							local line = vim.api.nvim_buf_get_lines(buf_id, i - 1, i, false)[1]
-							if line:match("^%s+" .. config.options.formatting.pending.icon .. ".*" .. vim.pesc(input)) then
+							if line:match("%s+" .. config.options.formatting.pending.icon .. ".*" .. vim.pesc(input)) then
 								target_line = i
 								break
 							end
@@ -1550,7 +1550,7 @@ function M.new_todo()
 					local target_line = nil
 					for i = 1, total_lines do
 						local line = vim.api.nvim_buf_get_lines(buf_id, i - 1, i, false)[1]
-						if line:match("^%s+" .. config.options.formatting.pending.icon .. ".*" .. vim.pesc(input)) then
+						if line:match("%s+" .. config.options.formatting.pending.icon .. ".*" .. vim.pesc(input)) then
 							target_line = i
 							break
 						end
@@ -1574,7 +1574,7 @@ function M.toggle_todo()
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
-	if line_content:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
@@ -1602,7 +1602,7 @@ function M.delete_todo()
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
-	if line_content:match("^%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		if state.active_filter then
 			local visible_index = 0
 			for i, todo in ipairs(state.todos) do
