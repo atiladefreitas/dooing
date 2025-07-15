@@ -158,6 +158,8 @@ Main Window~
     <leader>D   Remove duplicates
     <Space>     Toggle priority
     <leader>p   Open todo scratchpad
+    f           Refresh todo list
+    s           Share todos
 
 Tags Window~
     e           Edit tag
