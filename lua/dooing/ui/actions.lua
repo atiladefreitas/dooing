@@ -512,7 +512,7 @@ end
 
 -- Import/Export functions
 function M.prompt_export()
-	local default_path = vim.fn.expand("~/todos.json")
+	local default_path = vim.fn.expand(config.options.save_path)
 
 	vim.ui.input({
 		prompt = "Export todos to file: ",
@@ -537,7 +537,7 @@ function M.prompt_export()
 end
 
 function M.prompt_import()
-	local default_path = vim.fn.expand("~/todos.json")
+	local default_path = vim.fn.expand(config.options.save_path)
 
 	vim.ui.input({
 		prompt = "Import todos from file: ",
