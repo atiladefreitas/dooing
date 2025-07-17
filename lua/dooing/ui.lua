@@ -449,7 +449,7 @@ create_help_window = function()
 end
 
 local function prompt_export()
-	local default_path = vim.fn.expand("~/todos.json")
+	local default_path = vim.fn.expand(config.options.save_path)
 
 	vim.ui.input({
 		prompt = "Export todos to file: ",
@@ -474,7 +474,7 @@ local function prompt_export()
 end
 
 local function prompt_import(callback)
-	local default_path = vim.fn.expand("~/todos.json")
+	local default_path = vim.fn.expand(config.options.save_path)
 
 	vim.ui.input({
 		prompt = "Import todos from file: ",
