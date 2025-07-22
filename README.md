@@ -15,6 +15,7 @@ Dooing is a minimalist todo list manager for Neovim, designed with simplicity an
 - 🎨 Adapts to your Neovim **colorscheme**
 - 🛠️ Compatible with **Lazy.nvim** for effortless installation
 - ⏰ **Relative timestamps** showing when todos were created
+- 📂 **Per-project todos** with git integration
 
 ---
 
@@ -97,9 +98,18 @@ Dooing comes with sensible defaults that you can override:
         syntax_highlight = "markdown",
     },
 
+    -- Per-project todos
+    per_project = {
+        enabled = true,                        -- Enable per-project todos
+        default_filename = "dooing.json",      -- Default filename for project todos
+        auto_gitignore = false,                -- Auto-add to .gitignore (true/false/"prompt")
+        on_missing = "prompt",                 -- What to do when file missing ("prompt"/"auto_create")
+    },
+
     -- Keymaps
     keymaps = {
-        toggle_window = "<leader>td",
+        toggle_window = "<leader>td",          -- Toggle global todos
+        open_project_todo = "<leader>tD",      -- Toggle project-specific todos
         new_todo = "i",
         toggle_todo = "x",
         delete_todo = "d",
@@ -175,11 +185,44 @@ Dooing comes with sensible defaults that you can override:
 }
 ```
 
+## 📂 Per-Project Todos
+
+Dooing supports project-specific todo lists that are separate from your global todos. This feature integrates with git repositories to automatically detect project boundaries.
+
+### Usage
+
+- **`<leader>td`** - Open/toggle **global** todos (works everywhere)
+- **`<leader>tD`** - Open/toggle **project-specific** todos (only in git repositories)
+
+### How it works
+
+1. When you press `<leader>tD` in a git repository, Dooing looks for a todo file in the project root
+2. If the file exists, it loads those todos
+3. If not, it prompts you to create one with an optional custom filename
+4. Project todos are completely separate from global todos
+5. Switch between them anytime using the different keymaps
+
+### Configuration Options
+
+```lua
+per_project = {
+    enabled = true,                    -- Enable/disable per-project todos
+    default_filename = "dooing.json",  -- Default filename for new project todo files
+    auto_gitignore = false,           -- Automatically add to .gitignore
+                                      -- Set to true for auto-add, "prompt" to ask, false to skip
+    on_missing = "prompt",            -- What to do when project todo file doesn't exist
+                                      -- "prompt" = ask user, "auto_create" = create automatically
+}
+```
+
+---
+
 ## Commands
 
 Dooing provides several commands for task management:
 
-- `:Dooing` - Opens the main window
+- `:Dooing` - Opens the global todo window
+- `:DooingLocal` - Opens the project-specific todo window (git repositories only)
 - `:Dooing add [text]` - Adds a new task
   - `-p, --priorities [list]` - Comma-separated list of priorities (e.g. "important,urgent")
 - `:Dooing list` - Lists all todos with their indices and metadata

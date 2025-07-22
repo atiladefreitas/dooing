@@ -10,7 +10,7 @@ function M.setup(opts)
 	vim.api.nvim_create_user_command("Dooing", function(opts)
 		local args = vim.split(opts.args, "%s+", { trimempty = true })
 		if #args == 0 then
-			ui.toggle_todo_window()
+			M.open_global_todo()
 			return
 		end
 
@@ -179,10 +179,10 @@ function M.setup(opts)
 				vim.notify("Unknown field: " .. field, vim.log.levels.ERROR)
 			end
 		else
-			ui.toggle_todo_window()
+			M.open_global_todo()
 		end
 	end, {
-		desc = "Toggle Todo List window or add new todo",
+		desc = "Toggle Global Todo List window or add new todo",
 		nargs = "*",
 		complete = function(arglead, cmdline, cursorpos)
 			local args = vim.split(cmdline, "%s+", { trimempty = true })
@@ -210,12 +210,160 @@ function M.setup(opts)
 		end,
 	})
 
+	-- Create DooingLocal command for project todos
+	vim.api.nvim_create_user_command("DooingLocal", function()
+		M.open_project_todo()
+	end, {
+		desc = "Open project-specific todo list",
+	})
+
 	-- Only set up keymap if it's enabled in config
 	if config.options.keymaps.toggle_window then
 		vim.keymap.set("n", config.options.keymaps.toggle_window, function()
-			ui.toggle_todo_window()
-		end, { desc = "Toggle Todo List" })
+			M.open_global_todo()
+		end, { desc = "Toggle Global Todo List" })
 	end
+	
+	-- Set up project todo keymap if enabled
+	if config.options.keymaps.open_project_todo and config.options.per_project.enabled then
+		vim.keymap.set("n", config.options.keymaps.open_project_todo, function()
+			M.open_project_todo()
+		end, { desc = "Open Local Project Todo List" })
+	end
+end
+
+-- Open global todo list
+function M.open_global_todo()
+	-- Always load global todos regardless of current state
+	state.load_todos()
+	
+	-- If window is already open, update title and render, otherwise toggle
+	if ui.is_window_open() then
+		local window = require("dooing.ui.window")
+		window.update_window_title()
+		ui.render_todos()
+	else
+		ui.toggle_todo_window()
+	end
+	
+	vim.notify("Opened global todos", vim.log.levels.INFO, { title = "Dooing" })
+end
+
+-- Open project-specific todo list
+function M.open_project_todo()
+	if not config.options.per_project.enabled then
+		vim.notify("Per-project todos are disabled", vim.log.levels.WARN, { title = "Dooing" })
+		return
+	end
+	
+	local git_root = state.get_git_root()
+	if not git_root then
+		vim.notify("Not in a git repository", vim.log.levels.ERROR, { title = "Dooing" })
+		return
+	end
+	
+	local project_path = state.get_project_todo_path()
+	
+	if state.project_todo_exists() then
+		-- Load existing project todos
+		state.load_todos_from_path(project_path)
+		
+		-- If window is already open, update title and render, otherwise toggle
+		if ui.is_window_open() then
+			local window = require("dooing.ui.window")
+			window.update_window_title()
+			ui.render_todos()
+		else
+			ui.toggle_todo_window()
+		end
+		
+		local project_name = vim.fn.fnamemodify(git_root, ":t")
+		vim.notify("Opened project todos for: " .. project_name, vim.log.levels.INFO, { title = "Dooing" })
+	else
+		-- Handle missing project todo file
+		if config.options.per_project.on_missing == "auto_create" then
+			-- Auto-create the file
+			M.create_project_todo(project_path)
+		elseif config.options.per_project.on_missing == "prompt" then
+			-- Prompt user
+			M.prompt_create_project_todo(project_path)
+		end
+	end
+end
+
+-- Create project todo file
+function M.create_project_todo(path, custom_filename)
+	local final_path = path
+	if custom_filename then
+		local git_root = state.get_git_root()
+		final_path = git_root .. "/" .. custom_filename
+	end
+	
+	-- Create empty todo file
+	state.load_todos_from_path(final_path)
+	state.save_todos_to_current_path()
+	
+	-- Handle gitignore
+	local filename = vim.fn.fnamemodify(final_path, ":t")
+	if config.options.per_project.auto_gitignore == true then
+		local success, msg = state.add_to_gitignore(filename)
+		if success then
+			vim.notify("Created " .. filename .. " and " .. msg, vim.log.levels.INFO, { title = "Dooing" })
+		else
+			vim.notify("Created " .. filename .. " but failed to add to .gitignore: " .. msg, vim.log.levels.WARN, { title = "Dooing" })
+		end
+	elseif config.options.per_project.auto_gitignore == "prompt" then
+		vim.ui.select({"Yes", "No"}, {
+			prompt = "Add " .. filename .. " to .gitignore?",
+		}, function(choice)
+			if choice == "Yes" then
+				local success, msg = state.add_to_gitignore(filename)
+				vim.notify(msg, success and vim.log.levels.INFO or vim.log.levels.WARN, { title = "Dooing" })
+			end
+		end)
+	else
+		vim.notify("Created " .. filename .. ". Run 'echo \"" .. filename .. "\" >> .gitignore' to ignore it.", 
+			vim.log.levels.INFO, { title = "Dooing" })
+	end
+	
+	-- Open the todo window with updated title
+	if ui.is_window_open() then
+		local window = require("dooing.ui.window")
+		window.update_window_title()
+		ui.render_todos()
+	else
+		ui.toggle_todo_window()
+	end
+	
+	-- Notify about project todos
+	local git_root = state.get_git_root()
+	local project_name = vim.fn.fnamemodify(git_root, ":t")
+	vim.notify("Opened project todos for: " .. project_name, vim.log.levels.INFO, { title = "Dooing" })
+end
+
+-- Prompt user to create project todo
+function M.prompt_create_project_todo(path)
+	vim.ui.select({"Yes", "No"}, {
+		prompt = "No local TODO found. Create one?",
+	}, function(choice)
+		if choice == "Yes" then
+			vim.ui.input({
+				prompt = "Filename (default: " .. config.options.per_project.default_filename .. "): ",
+				default = "",
+			}, function(input)
+				if input == nil then
+					return -- User cancelled
+				end
+				
+				local filename = vim.trim(input)
+				if filename == "" then
+					filename = config.options.per_project.default_filename
+				end
+				
+				M.create_project_todo(path, filename)
+			end)
+		end
+	end)
 end
 
 return M

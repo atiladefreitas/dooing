@@ -5,6 +5,7 @@ local M = {}
 local constants = require("dooing.ui.constants")
 local highlights = require("dooing.ui.highlights")
 local config = require("dooing.config")
+local state = require("dooing.state")
 
 -- Creates and configures the small keys window
 local function create_small_keys_window(main_win_pos)
@@ -144,7 +145,7 @@ function M.create_window()
 		height = height,
 		style = "minimal",
 		border = "rounded",
-		title = " to-dos ",
+		title = state.get_window_title(),
 		title_pos = "center",
 		footer = " [?] for help ",
 		footer_pos = "center",
@@ -194,6 +195,15 @@ function M.close_window()
 		vim.api.nvim_win_close(constants.win_id, true)
 		constants.win_id = nil
 		constants.buf_id = nil
+	end
+end
+
+-- Update window title without recreating the window
+function M.update_window_title()
+	if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+		vim.api.nvim_win_set_config(constants.win_id, {
+			title = state.get_window_title(),
+		})
 	end
 end
 

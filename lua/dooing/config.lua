@@ -65,8 +65,15 @@ M.defaults = {
 	hour_score_value = 1 / 8,
 	done_sort_by_completed_time = false,
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
+	per_project = {
+		enabled = true,
+		default_filename = "dooing.json",
+		auto_gitignore = false,
+		on_missing = "prompt",
+	},
 	keymaps = {
 		toggle_window = "<leader>td",
+		open_project_todo = "<leader>tD",
 		new_todo = "i",
 		toggle_todo = "x",
 		delete_todo = "d",

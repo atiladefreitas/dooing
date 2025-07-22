@@ -8,6 +8,8 @@ local config = require("dooing.config")
 local priority_weights = {}
 
 M.todos = {}
+M.current_save_path = nil
+M.current_context = "global" -- Track current context: "global" or project name
 
 -- Update priority weights cache when config changes
 local function update_priority_weights()
@@ -18,25 +20,155 @@ local function update_priority_weights()
 end
 
 local function save_todos()
-	local file = io.open(config.options.save_path, "w")
+	local save_path = M.current_save_path or config.options.save_path
+	local file = io.open(save_path, "w")
 	if file then
 		file:write(vim.fn.json_encode(M.todos))
 		file:close()
 	end
 end
 
--- Expose it as part of the module
+-- Expose it as part of the module  
 M.save_todos = save_todos
+M.save_todos_to_current_path = function()
+	local save_path = M.current_save_path or config.options.save_path
+	local file = io.open(save_path, "w")
+	if file then
+		file:write(vim.fn.json_encode(M.todos))
+		file:close()
+	end
+end
 
-function M.load_todos()
+-- Get git root directory
+function M.get_git_root()
+	local handle = io.popen("git rev-parse --show-toplevel 2>/dev/null")
+	if not handle then
+		return nil
+	end
+	
+	local result = handle:read("*a")
+	handle:close()
+	
+	if result and result ~= "" then
+		return vim.trim(result)
+	end
+	
+	return nil
+end
+
+-- Get project todo file path
+function M.get_project_todo_path()
+	local git_root = M.get_git_root()
+	if not git_root then
+		return nil
+	end
+	
+	return git_root .. "/" .. config.options.per_project.default_filename
+end
+
+-- Check if project todo file exists
+function M.project_todo_exists()
+	local path = M.get_project_todo_path()
+	if not path then
+		return false
+	end
+	
+	local file = io.open(path, "r")
+	if file then
+		file:close()
+		return true
+	end
+	return false
+end
+
+-- Load todos from specific path
+function M.load_todos_from_path(path)
+	M.current_save_path = path
+	
+	-- Set context based on path
+	local git_root = M.get_git_root()
+	if git_root then
+		M.current_context = vim.fn.fnamemodify(git_root, ":t")
+	else
+		M.current_context = "project"
+	end
+	
 	update_priority_weights()
-	local file = io.open(config.options.save_path, "r")
+	local file = io.open(path, "r")
 	if file then
 		local content = file:read("*all")
 		file:close()
 		if content and content ~= "" then
 			M.todos = vim.fn.json_decode(content)
+		else
+			M.todos = {}
 		end
+	else
+		M.todos = {}
+	end
+end
+
+
+
+-- Get window title based on current context
+function M.get_window_title()
+	if M.current_context == "global" then
+		return " Global to-dos "
+	else
+		return " " .. M.current_context .. " to-dos "
+	end
+end
+
+-- Add gitignore entry
+function M.add_to_gitignore(filename)
+	local git_root = M.get_git_root()
+	if not git_root then
+		return false, "Not in a git repository"
+	end
+	
+	local gitignore_path = git_root .. "/.gitignore"
+	local file = io.open(gitignore_path, "r")
+	local content = ""
+	
+	if file then
+		content = file:read("*all")
+		file:close()
+		
+		-- Check if already ignored
+		if content:find(filename, 1, true) then
+			return true, "Already in .gitignore"
+		end
+	end
+	
+	-- Append to gitignore
+	file = io.open(gitignore_path, "a")
+	if file then
+		if content ~= "" and not content:match("\n$") then
+			file:write("\n")
+		end
+		file:write(filename .. "\n")
+		file:close()
+		return true, "Added to .gitignore"
+	end
+	
+	return false, "Failed to write to .gitignore"
+end
+
+function M.load_todos()
+	M.current_save_path = config.options.save_path
+	M.current_context = "global"
+	update_priority_weights()
+	local file = io.open(M.current_save_path, "r")
+	if file then
+		local content = file:read("*all")
+		file:close()
+		if content and content ~= "" then
+			M.todos = vim.fn.json_decode(content)
+		else
+			M.todos = {}
+		end
+	else
+		M.todos = {}
 	end
 end
 

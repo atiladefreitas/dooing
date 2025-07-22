@@ -80,4 +80,14 @@ function M.remove_duplicates()
 	actions.remove_duplicates()
 end
 
+-- Open global todo list
+function M.open_global_todo()
+	require("dooing").open_global_todo()
+end
+
+-- Open project-specific todo list
+function M.open_project_todo()
+	require("dooing").open_project_todo()
+end
+
 return M 
