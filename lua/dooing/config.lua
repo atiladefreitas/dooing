@@ -64,6 +64,12 @@ M.defaults = {
 	},
 	hour_score_value = 1 / 8,
 	done_sort_by_completed_time = false,
+	nested_tasks = {
+		enabled = true,
+		indent = 2,
+		retain_structure_on_complete = true,
+		move_completed_to_end = true,
+	},
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
 	per_project = {
 		enabled = true,
@@ -75,6 +81,7 @@ M.defaults = {
 		toggle_window = "<leader>td",
 		open_project_todo = "<leader>tD",
 		new_todo = "i",
+		create_nested_task = "<leader>tn",
 		toggle_todo = "x",
 		delete_todo = "d",
 		delete_completed = "D",

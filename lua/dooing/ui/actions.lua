@@ -358,6 +358,187 @@ function M.new_todo()
 	end)
 end
 
+-- Creates a nested todo item under the current todo
+function M.new_nested_todo()
+	-- Check if nested tasks are enabled
+	if not config.options.nested_tasks or not config.options.nested_tasks.enabled then
+		vim.notify("Nested tasks are disabled in configuration", vim.log.levels.WARN)
+		return
+	end
+	
+	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
+	local todo_index = cursor[1] - 1
+	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, todo_index, todo_index + 1, false)[1]
+	
+	local done_icon = config.options.formatting.done.icon
+	local pending_icon = config.options.formatting.pending.icon
+	local in_progress_icon = config.options.formatting.in_progress.icon
+	
+	-- Check if cursor is on a todo line
+	if not line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+		vim.notify("Cursor must be on a todo item to create nested task", vim.log.levels.WARN)
+		return
+	end
+	
+	-- Adjust index for filtered view
+	if state.active_filter then
+		local visible_index = 0
+		for i, todo in ipairs(state.todos) do
+			if todo.text:match("#" .. state.active_filter) then
+				visible_index = visible_index + 1
+				if visible_index == todo_index - 2 then
+					todo_index = i
+					break
+				end
+			end
+		end
+	end
+	
+	vim.ui.input({ prompt = "New sub-task: " }, function(input)
+		input = input:gsub("\n", " ")
+		if input and input ~= "" then
+			-- Check if priorities are configured
+			if config.options.priorities and #config.options.priorities > 0 then
+				local priorities = config.options.priorities
+				local priority_options = {}
+				local selected_priorities = {}
+
+				for i, priority in ipairs(priorities) do
+					priority_options[i] = string.format("[ ] %s", priority.name)
+				end
+
+				-- Create a buffer for priority selection
+				local select_buf = vim.api.nvim_create_buf(false, true)
+				local ui = vim.api.nvim_list_uis()[1]
+				local width = 40
+				local height = #priority_options + 2
+				local row = math.floor((ui.height - height) / 2)
+				local col = math.floor((ui.width - width) / 2)
+
+				-- Store keymaps for cleanup
+				local keymaps = {
+					config.options.keymaps.toggle_priority,
+					"<CR>",
+					"q",
+					"<Esc>",
+				}
+
+				local select_win = vim.api.nvim_open_win(select_buf, true, {
+					relative = "editor",
+					width = width,
+					height = height,
+					row = row,
+					col = col,
+					style = "minimal",
+					border = "rounded",
+					title = " Select Priorities ",
+					title_pos = "center",
+					footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_priority),
+					footer_pos = "center",
+				})
+
+				-- Set buffer content
+				vim.api.nvim_buf_set_lines(select_buf, 0, -1, false, priority_options)
+				vim.api.nvim_buf_set_option(select_buf, "modifiable", false)
+
+				-- Add keymaps for selection
+				vim.keymap.set("n", config.options.keymaps.toggle_priority, function()
+					if not (select_win and vim.api.nvim_win_is_valid(select_win)) then
+						return
+					end
+
+					local cursor = vim.api.nvim_win_get_cursor(select_win)
+					local line_num = cursor[1]
+					local current_line = vim.api.nvim_buf_get_lines(select_buf, line_num - 1, line_num, false)[1]
+
+					vim.api.nvim_buf_set_option(select_buf, "modifiable", true)
+					if current_line:match("^%[%s%]") then
+						-- Select item
+						local new_line = current_line:gsub("^%[%s%]", "[x]")
+						selected_priorities[line_num] = true
+						vim.api.nvim_buf_set_lines(select_buf, line_num - 1, line_num, false, { new_line })
+					else
+						-- Deselect item
+						local new_line = current_line:gsub("^%[x%]", "[ ]")
+						selected_priorities[line_num] = nil
+						vim.api.nvim_buf_set_lines(select_buf, line_num - 1, line_num, false, { new_line })
+					end
+					vim.api.nvim_buf_set_option(select_buf, "modifiable", false)
+				end, { buffer = select_buf, nowait = true })
+
+				-- Add keymap for confirmation
+				vim.keymap.set("n", "<CR>", function()
+					if not (select_win and vim.api.nvim_win_is_valid(select_win)) then
+						return
+					end
+
+					local selected_priority_names = {}
+					for idx, _ in pairs(selected_priorities) do
+						local priority = config.options.priorities[idx]
+						if priority then
+							table.insert(selected_priority_names, priority.name)
+						end
+					end
+
+					-- Clean up resources before proceeding
+					utils.cleanup_priority_selection(select_buf, select_win, keymaps)
+
+					-- Add nested todo with priority names
+					local priorities_to_add = #selected_priority_names > 0 and selected_priority_names or nil
+					local success = state.add_nested_todo(input, todo_index, priorities_to_add)
+					
+					if success then
+						local rendering = require("dooing.ui.rendering")
+						rendering.render_todos()
+						vim.notify("Nested task created", vim.log.levels.INFO)
+						
+						-- Focus back to main window
+						if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+							vim.api.nvim_set_current_win(constants.win_id)
+						end
+					else
+						vim.notify("Failed to create nested task", vim.log.levels.ERROR)
+					end
+				end, { buffer = select_buf, nowait = true })
+
+				-- Add escape/quit keymaps
+				local function close_window()
+					utils.cleanup_priority_selection(select_buf, select_win, keymaps)
+				end
+
+				vim.keymap.set("n", "q", close_window, { buffer = select_buf, nowait = true })
+				vim.keymap.set("n", "<Esc>", close_window, { buffer = select_buf, nowait = true })
+
+				-- Add autocmd for cleanup when leaving buffer
+				vim.api.nvim_create_autocmd("BufLeave", {
+					buffer = select_buf,
+					callback = function()
+						utils.cleanup_priority_selection(select_buf, select_win, keymaps)
+						return true -- Remove the autocmd after execution
+					end,
+					once = true,
+				})
+			else
+				-- If prioritization is disabled, just add the nested todo without priority
+				local success = state.add_nested_todo(input, todo_index, nil)
+				
+				if success then
+					local rendering = require("dooing.ui.rendering")
+					rendering.render_todos()
+					vim.notify("Nested task created", vim.log.levels.INFO)
+					
+					-- Focus back to main window
+					if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+						vim.api.nvim_set_current_win(constants.win_id)
+					end
+				else
+					vim.notify("Failed to create nested task", vim.log.levels.ERROR)
+				end
+			end
+		end
+	end)
+end
+
 -- Toggles the completion status of the current todo
 function M.toggle_todo()
 	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)

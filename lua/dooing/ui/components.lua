@@ -41,6 +41,7 @@ function M.create_help_window()
   local help_content = {
     " Main window:",
     string.format(" %-12s - Add new to-do", keys.new_todo),
+    string.format(" %-12s - Add nested sub-task", keys.create_nested_task),
     string.format(" %-12s - Toggle to-do status", keys.toggle_todo),
     string.format(" %-12s - Delete current to-do", keys.delete_todo),
     string.format(" %-12s - Delete all completed todos", keys.delete_completed),

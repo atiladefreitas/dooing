@@ -106,11 +106,20 @@ Dooing comes with sensible defaults that you can override:
         on_missing = "prompt",                 -- What to do when file missing ("prompt"/"auto_create")
     },
 
+    -- Nested tasks
+    nested_tasks = {
+        enabled = true,                        -- Enable nested subtasks
+        indent = 2,                           -- Spaces per nesting level
+        retain_structure_on_complete = true,   -- Keep nested structure when completing tasks
+        move_completed_to_end = true,         -- Move completed nested tasks to end of parent group
+    },
+
     -- Keymaps
     keymaps = {
         toggle_window = "<leader>td",          -- Toggle global todos
         open_project_todo = "<leader>tD",      -- Toggle project-specific todos
         new_todo = "i",
+        create_nested_task = "<leader>tn",     -- Create nested subtask under current todo
         toggle_todo = "x",
         delete_todo = "d",
         delete_completed = "D",
@@ -241,6 +250,7 @@ Dooing comes with intuitive keybindings:
 |--------------|------------------------------|
 | `<leader>td` | Toggle todo window           |
 | `i`          | Add new todo                 |
+| `<leader>tn` | Create nested subtask        |
 | `x`          | Toggle todo status           |
 | `d`          | Delete current todo          |
 | `D`          | Delete all completed todos   |
@@ -259,10 +269,9 @@ Dooing comes with intuitive keybindings:
 | `I`          | Import todos                 |
 | `E`          | Export todos                 |
 | `<leader>D`  | Remove duplicates            |
-| `<Space>`    | Toggle priority              |
 | `<leader>p`  | Open todo scratchpad         |
 | `f`          | Refresh todo list            |
-| `s`          | Share todos                  |
+| `s`          | Share todos [EXPERIMENTAL]                  |
 
 #### Tags Window
 | Key    | Action        |
@@ -296,7 +305,7 @@ Planned features and improvements for future versions of Dooing:
 - [x] Priority Levels
 - [x] Todo Filtering by Tags
 - [x] Todo Search
-- [ ] Todo List Per Project
+- [x] Todo List Per Project
 
 #### UI Enhancements
 
@@ -306,7 +315,7 @@ Planned features and improvements for future versions of Dooing:
 
 #### Quality of Life
 
-- [ ] Multiple Todo Lists
+- [x] Multiple Todo Lists
 - [X] Import/Export Features
 
 ---

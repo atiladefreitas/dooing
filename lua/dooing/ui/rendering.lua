@@ -9,10 +9,117 @@ local state = require("dooing.state")
 local config = require("dooing.config")
 local calendar = require("dooing.ui.calendar")
 
+-- Save the current fold state
+local function save_fold_state()
+	if not constants.win_id or not vim.api.nvim_win_is_valid(constants.win_id) then
+		return {}
+	end
+	
+	local ok, result = pcall(function()
+		local folds = {}
+		local line_count = vim.api.nvim_buf_line_count(constants.buf_id)
+		
+		-- Save the current window to restore later
+		local current_win = vim.api.nvim_get_current_win()
+		vim.api.nvim_set_current_win(constants.win_id)
+		
+		-- Build a map of line numbers to todo indices
+		local line_to_todo = {}
+		local todo_line = state.active_filter and 3 or 1 -- Start after header
+		
+		for i, todo in ipairs(state.todos) do
+			if not state.active_filter or todo.text:match("#" .. state.active_filter) then
+				todo_line = todo_line + 1
+				line_to_todo[todo_line] = i
+			end
+		end
+		
+		-- Check which todos have closed folds
+		for line = 1, line_count do
+			local fold_level = vim.fn.foldlevel(line)
+			local is_closed = vim.fn.foldclosed(line) > 0
+			local todo_index = line_to_todo[line]
+			
+			if fold_level > 0 and is_closed and todo_index then
+				local todo = state.todos[todo_index]
+				if todo and todo.id then
+					folds[todo.id] = true
+				end
+			end
+		end
+		
+		-- Restore the previous window
+		if vim.api.nvim_win_is_valid(current_win) then
+			vim.api.nvim_set_current_win(current_win)
+		end
+		
+		return folds
+	end)
+	
+	return ok and result or {}
+end
+
+-- Restore the fold state
+local function restore_fold_state(folds)
+	if not constants.win_id or not vim.api.nvim_win_is_valid(constants.win_id) or not folds or vim.tbl_isempty(folds) then
+		return
+	end
+	
+	pcall(function()
+		-- Save the current window to restore later
+		local current_win = vim.api.nvim_get_current_win()
+		vim.api.nvim_set_current_win(constants.win_id)
+		
+		-- First, open all folds
+		vim.cmd("normal! zR")
+		
+		-- Build a map of todo IDs to line numbers
+		local todo_to_line = {}
+		local todo_line = state.active_filter and 3 or 1 -- Start after header
+		
+		for i, todo in ipairs(state.todos) do
+			if not state.active_filter or todo.text:match("#" .. state.active_filter) then
+				todo_line = todo_line + 1
+				if todo.id then
+					todo_to_line[todo.id] = todo_line
+				end
+			end
+		end
+		
+		-- Close folds for todos that were previously folded
+		for todo_id, _ in pairs(folds) do
+			local line = todo_to_line[todo_id]
+			if line and line <= vim.api.nvim_buf_line_count(constants.buf_id) then
+				vim.api.nvim_win_set_cursor(constants.win_id, {line, 0})
+				if vim.fn.foldlevel(line) > 0 then
+					vim.cmd("normal! zc")
+				end
+			end
+		end
+		
+		-- Restore the previous window
+		if vim.api.nvim_win_is_valid(current_win) then
+			vim.api.nvim_set_current_win(current_win)
+		end
+	end)
+end
+
 -- Main function for todos rendering
 function M.render_todos()
 	if not constants.buf_id then
 		return
+	end
+
+	-- Save fold state and cursor position before rendering
+	local fold_state = save_fold_state()
+	local cursor_pos = nil
+	if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+		local current_win = vim.api.nvim_get_current_win()
+		vim.api.nvim_set_current_win(constants.win_id)
+		cursor_pos = vim.api.nvim_win_get_cursor(constants.win_id)
+		if vim.api.nvim_win_is_valid(current_win) then
+			vim.api.nvim_set_current_win(current_win)
+		end
 	end
 
 	-- Create the buffer
@@ -40,7 +147,14 @@ function M.render_todos()
 				tmp_notes_icon = notes_icon
 			end
 			local todo_text = utils.render_todo(todo, formatting, lang, tmp_notes_icon)
-			table.insert(lines, "  " .. todo_text)
+			
+			-- Calculate indentation based on depth
+			local depth = todo.depth or 0
+			local indent_size = config.options.nested_tasks and config.options.nested_tasks.indent or 2
+			local base_indent = "  " -- Base indentation for all todos
+			local nested_indent = string.rep(" ", depth * indent_size)
+			
+			table.insert(lines, base_indent .. nested_indent .. todo_text)
 		end
 	end
 
@@ -111,6 +225,24 @@ function M.render_todos()
 	end
 
 	vim.api.nvim_buf_set_option(constants.buf_id, "modifiable", false)
+	
+	-- Restore fold state and cursor position after rendering (with a small delay to ensure buffer is ready)
+	vim.defer_fn(function()
+		restore_fold_state(fold_state)
+		-- Restore cursor position if it was saved
+		if cursor_pos and constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+			local current_win = vim.api.nvim_get_current_win()
+			vim.api.nvim_set_current_win(constants.win_id)
+			local line_count = vim.api.nvim_buf_line_count(constants.buf_id)
+			-- Ensure cursor position is valid
+			if cursor_pos[1] <= line_count then
+				pcall(vim.api.nvim_win_set_cursor, constants.win_id, cursor_pos)
+			end
+			if vim.api.nvim_win_is_valid(current_win) then
+				vim.api.nvim_set_current_win(current_win)
+			end
+		end
+	end, 15)
 end
 
 return M 

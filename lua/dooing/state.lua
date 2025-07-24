@@ -100,6 +100,8 @@ function M.load_todos_from_path(path)
 		file:close()
 		if content and content ~= "" then
 			M.todos = vim.fn.json_decode(content)
+			-- Migrate existing todos to new format
+			M.migrate_todos()
 		else
 			M.todos = {}
 		end
@@ -164,6 +166,8 @@ function M.load_todos()
 		file:close()
 		if content and content ~= "" then
 			M.todos = vim.fn.json_decode(content)
+			-- Migrate existing todos to new format
+			M.migrate_todos()
 		else
 			M.todos = {}
 		end
@@ -172,8 +176,32 @@ function M.load_todos()
 	end
 end
 
+-- Migrate existing todos to support nested structure
+function M.migrate_todos()
+	for i, todo in ipairs(M.todos) do
+		-- Add unique ID if missing
+		if not todo.id then
+			todo.id = os.time() .. "_" .. i .. "_" .. math.random(1000, 9999)
+		end
+		
+		-- Add nesting fields if missing
+		if todo.parent_id == nil then
+			todo.parent_id = nil
+		end
+		if todo.depth == nil then
+			todo.depth = 0
+		end
+	end
+	-- Save migrated data
+	save_todos()
+end
+
 function M.add_todo(text, priority_names)
+	-- Generate unique ID using timestamp and random component
+	local unique_id = os.time() .. "_" .. math.random(1000, 9999)
+	
 	table.insert(M.todos, {
+		id = unique_id,
 		text = text,
 		done = false,
 		in_progress = false,
@@ -182,8 +210,55 @@ function M.add_todo(text, priority_names)
 		priorities = priority_names,
 		estimated_hours = nil, -- Add estimated_hours field
 		notes = "",
+		parent_id = nil, -- For nested tasks: ID of parent task
+		depth = 0, -- Nesting depth (0 = top level, 1 = first level subtask, etc.)
 	})
 	save_todos()
+end
+
+-- Add nested todo under a parent task
+function M.add_nested_todo(text, parent_index, priority_names)
+	-- Check if nested tasks are enabled
+	if not config.options.nested_tasks or not config.options.nested_tasks.enabled then
+		return false, "Nested tasks are disabled"
+	end
+	
+	if not M.todos[parent_index] then
+		return false, "Parent todo not found"
+	end
+	
+	local parent_todo = M.todos[parent_index]
+	local parent_depth = parent_todo.depth or 0
+	local parent_id = parent_todo.id -- Use stable ID instead of index
+	
+	-- Generate unique ID for nested todo
+	local unique_id = os.time() .. "_" .. math.random(1000, 9999)
+	
+	-- Create nested todo
+	local nested_todo = {
+		id = unique_id,
+		text = text,
+		done = false,
+		in_progress = false,
+		category = text:match("#(%w+)") or "",
+		created_at = os.time(),
+		priorities = priority_names,
+		estimated_hours = nil,
+		notes = "",
+		parent_id = parent_id,
+		depth = parent_depth + 1,
+	}
+	
+	-- Insert after parent and its existing children
+	local insert_position = parent_index + 1
+	while insert_position <= #M.todos and 
+		  M.todos[insert_position].parent_id == parent_id do
+		insert_position = insert_position + 1
+	end
+	
+	table.insert(M.todos, insert_position, nested_todo)
+	save_todos()
+	return true
 end
 
 function M.toggle_todo(index)
@@ -332,12 +407,71 @@ function M.delete_todo(index)
 end
 
 function M.delete_completed()
+	if M.nested_tasks_enabled() then
+		M.delete_completed_structure_aware()
+	else
+		M.delete_completed_flat()
+	end
+end
+
+-- Original delete completed (preserves old behavior when nested tasks disabled)
+function M.delete_completed_flat()
 	local remaining_todos = {}
 	for _, todo in ipairs(M.todos) do
 		if not todo.done then
 			table.insert(remaining_todos, todo)
 		end
 	end
+	M.todos = remaining_todos
+	save_todos()
+end
+
+-- Structure-aware delete completed that handles orphaned nested tasks
+function M.delete_completed_structure_aware()
+	local remaining_todos = {}
+	local orphaned_todos = {}
+	
+	-- First pass: collect remaining todos and identify orphans
+	for _, todo in ipairs(M.todos) do
+		if not todo.done then
+			table.insert(remaining_todos, todo)
+		elseif todo.parent_id then
+			-- This is a completed nested task, check if parent still exists
+			local parent_exists = false
+			for _, remaining in ipairs(remaining_todos) do
+				if remaining.id == todo.parent_id then
+					parent_exists = true
+					break
+				end
+			end
+			-- If parent doesn't exist yet, we'll check in the final list
+			table.insert(orphaned_todos, todo)
+		end
+	end
+	
+	-- Second pass: handle orphaned nested tasks
+	for _, orphan in ipairs(orphaned_todos) do
+		local parent_exists = false
+		for _, remaining in ipairs(remaining_todos) do
+			if remaining.id == orphan.parent_id then
+				parent_exists = true
+				break
+			end
+		end
+		
+		if parent_exists then
+			-- Parent still exists, keep the orphaned task
+			table.insert(remaining_todos, orphan)
+		else
+			-- Parent was deleted, promote orphan to top-level if not completed
+			if not orphan.done then
+				orphan.parent_id = nil
+				orphan.depth = 0
+				table.insert(remaining_todos, orphan)
+			end
+		end
+	end
+	
 	M.todos = remaining_todos
 	save_todos()
 end
@@ -398,7 +532,24 @@ function M.get_priority_score(todo)
 	return score * ect_multiplier
 end
 
+-- Helper function to check if nested tasks are enabled
+function M.nested_tasks_enabled()
+	return config.options.nested_tasks and 
+		   config.options.nested_tasks.enabled and 
+		   config.options.nested_tasks.retain_structure_on_complete
+end
+
 function M.sort_todos()
+	-- Check if nested tasks are enabled and structure should be preserved
+	if M.nested_tasks_enabled() then
+		M.sort_todos_with_structure()
+	else
+		M.sort_todos_flat()
+	end
+end
+
+-- Original flat sorting (preserves old behavior when nested tasks disabled)
+function M.sort_todos_flat()
 	table.sort(M.todos, function(a, b)
 		-- First sort by completion status
 		if a.done ~= b.done then
@@ -437,6 +588,129 @@ function M.sort_todos()
 		-- Finally sort by creation time
 		return a.created_at < b.created_at
 	end)
+end
+
+-- Structure-preserving sorting for nested tasks
+function M.sort_todos_with_structure()
+	-- Group todos by their hierarchical structure
+	local top_level = {}
+	local nested_groups = {}
+	
+	-- Separate top-level todos and group nested ones by parent
+	for i, todo in ipairs(M.todos) do
+		if not todo.parent_id then
+			table.insert(top_level, {todo = todo, original_index = i, children = {}})
+		else
+			if not nested_groups[todo.parent_id] then
+				nested_groups[todo.parent_id] = {}
+			end
+			table.insert(nested_groups[todo.parent_id], {todo = todo, original_index = i})
+		end
+	end
+	
+	-- Sort top-level todos
+	table.sort(top_level, M.compare_todos)
+	
+	-- Sort nested groups
+	for parent_id, children in pairs(nested_groups) do
+		if config.options.nested_tasks.move_completed_to_end then
+			-- Sort children but keep completed at end within their group
+			table.sort(children, M.compare_todos)
+		else
+			-- Sort children without moving completed ones
+			table.sort(children, function(a, b)
+				return M.compare_todos_ignore_completion(a, b)
+			end)
+		end
+	end
+	
+	-- Rebuild the todos array maintaining structure
+	local new_todos = {}
+	for _, parent_data in ipairs(top_level) do
+		table.insert(new_todos, parent_data.todo)
+		
+		-- Add children after parent
+		local children = nested_groups[parent_data.todo.id]
+		if children then
+			for _, child_data in ipairs(children) do
+				table.insert(new_todos, child_data.todo)
+			end
+		end
+	end
+	
+	M.todos = new_todos
+end
+
+-- Comparison function for todos
+function M.compare_todos(a, b)
+	local todo_a = a.todo
+	local todo_b = b.todo
+	
+	-- First sort by completion status
+	if todo_a.done ~= todo_b.done then
+		return not todo_a.done -- Undone items come first
+	end
+
+	-- For completed items, sort by completion time (most recent first)
+	if config.options.done_sort_by_completed_time and todo_a.done and todo_b.done then
+		local a_time = todo_a.completed_at or todo_a.created_at or 0
+		local b_time = todo_b.completed_at or todo_b.created_at or 0
+		return a_time > b_time
+	end
+
+	-- Then sort by priority score if configured
+	if config.options.priorities and #config.options.priorities > 0 then
+		local a_score = M.get_priority_score(todo_a)
+		local b_score = M.get_priority_score(todo_b)
+
+		if a_score ~= b_score then
+			return a_score > b_score
+		end
+	end
+
+	-- Then sort by due date if both have one
+	if todo_a.due_at and todo_b.due_at then
+		if todo_a.due_at ~= todo_b.due_at then
+			return todo_a.due_at < todo_b.due_at
+		end
+	elseif todo_a.due_at then
+		return true
+	elseif todo_b.due_at then
+		return false
+	end
+
+	-- Finally sort by creation time
+	return todo_a.created_at < todo_b.created_at
+end
+
+-- Comparison function that ignores completion status (for nested tasks when move_completed_to_end is false)
+function M.compare_todos_ignore_completion(a, b)
+	local todo_a = a.todo
+	local todo_b = b.todo
+	
+	-- Sort by priority score if configured
+	if config.options.priorities and #config.options.priorities > 0 then
+		local a_score = M.get_priority_score(todo_a)
+		local b_score = M.get_priority_score(todo_b)
+
+		if a_score ~= b_score then
+			return a_score > b_score
+		end
+	end
+
+	-- Then sort by due date if both have one
+	if todo_a.due_at and todo_b.due_at then
+		if todo_a.due_at ~= todo_b.due_at then
+			return todo_a.due_at < todo_b.due_at
+		end
+	elseif todo_a.due_at then
+		return true
+	elseif todo_b.due_at then
+		return false
+	end
+
+	-- Finally sort by creation time
+	return todo_a.created_at < todo_b.created_at
 end
 
 function M.rename_tag(old_tag, new_tag)

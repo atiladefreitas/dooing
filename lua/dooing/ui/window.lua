@@ -21,6 +21,7 @@ local function create_small_keys_window(main_win_pos)
 	local lines_1 = {
 		"",
 		string.format("  %-6s - New todo", keys.new_todo),
+		string.format("  %-6s - Nested todo", keys.create_nested_task),
 		string.format("  %-6s - Toggle todo", keys.toggle_todo),
 		string.format("  %-6s - Delete todo", keys.delete_todo),
 		string.format("  %-6s - Undo delete", keys.undo_delete),
@@ -176,6 +177,11 @@ function M.create_window()
 	vim.api.nvim_win_set_option(constants.win_id, "breakindent", true)
 	vim.api.nvim_win_set_option(constants.win_id, "breakindentopt", "shift:2")
 	vim.api.nvim_win_set_option(constants.win_id, "showbreak", " ")
+	
+	-- Set up folding for nested tasks
+	vim.api.nvim_win_set_option(constants.win_id, "foldmethod", "indent")
+	vim.api.nvim_win_set_option(constants.win_id, "foldlevel", 99) -- Start with all folds open
+	vim.api.nvim_win_set_option(constants.win_id, "foldenable", true)
 end
 
 -- Check if the window is currently open

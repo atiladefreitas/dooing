@@ -25,6 +25,7 @@ function M.setup_keymaps()
 
 	-- Main actions
 	setup_keymap("new_todo", actions.new_todo)
+	setup_keymap("create_nested_task", actions.new_nested_todo)
 	setup_keymap("toggle_todo", actions.toggle_todo)
 	setup_keymap("delete_todo", actions.delete_todo)
 	setup_keymap("delete_completed", actions.delete_completed)
