@@ -137,6 +137,9 @@ function M.render_todos()
 	local tmp_notes_icon = ""
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
+	-- Get window width for timestamp positioning
+	local window_width = config.options.window.width
+	
 	-- Loop through all todos and render them using the format
 	for _, todo in ipairs(state.todos) do
 		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
@@ -146,15 +149,20 @@ function M.render_todos()
 			else
 				tmp_notes_icon = notes_icon
 			end
-			local todo_text = utils.render_todo(todo, formatting, lang, tmp_notes_icon)
 			
 			-- Calculate indentation based on depth
 			local depth = todo.depth or 0
 			local indent_size = config.options.nested_tasks and config.options.nested_tasks.indent or 2
 			local base_indent = "  " -- Base indentation for all todos
 			local nested_indent = string.rep(" ", depth * indent_size)
+			local total_indent = base_indent .. nested_indent
 			
-			table.insert(lines, base_indent .. nested_indent .. todo_text)
+			-- Adjust window width for indentation
+			local effective_width = window_width - vim.fn.strdisplaywidth(total_indent)
+			
+			local todo_text = utils.render_todo(todo, formatting, lang, tmp_notes_icon, effective_width)
+			
+			table.insert(lines, total_indent .. todo_text)
 		end
 	end
 
@@ -207,15 +215,38 @@ function M.render_todos()
 				end
 
 				-- Due date and overdue highlights
-				highlight_pattern(line, line_nr, "%[@%d+/%d+/%d+%]", "Comment")
+				-- Match various due date formats: [icon date], [date], [@ date]
+				local due_date_patterns = {
+					"%[.-%d+.-%d+.-%d+%]", -- General date pattern with brackets
+					"%[@ .-%]" -- @ format pattern
+				}
+				for _, pattern in ipairs(due_date_patterns) do
+					local start_idx = line:find(pattern)
+					if start_idx then
+						local match = line:match(pattern)
+						-- Don't highlight OVERDUE part
+						if not match:find("OVERDUE") then
+							add_hl(line_nr, start_idx - 1, start_idx + #match - 1, "DooingTimestamp")
+						end
+					end
+				end
 				highlight_pattern(line, line_nr, "%[OVERDUE%]", "ErrorMsg")
 
-				-- Timestamp highlight
+				-- Time estimation highlight
+				local ect_pattern = "%[≈ [%d%.]+[mhdw]%]"
+				local start_idx = line:find(ect_pattern)
+				if start_idx then
+					local match = line:match(ect_pattern)
+					add_hl(line_nr, start_idx - 1, start_idx + #match - 1, "DooingTimestamp")
+				end
+
+				-- Timestamp highlight (now positioned at the right)
 				if config.options.timestamp and config.options.timestamp.enabled then
 					local timestamp_pattern = "@[%w%s]+ago"
 					local start_idx = line:find(timestamp_pattern)
 					if start_idx then
-						add_hl(line_nr, start_idx - 1, start_idx + #line:match(timestamp_pattern), "DooingTimestamp")
+						local match = line:match(timestamp_pattern)
+						add_hl(line_nr, start_idx - 1, start_idx + #match - 1, "DooingTimestamp")
 					end
 				end
 			end

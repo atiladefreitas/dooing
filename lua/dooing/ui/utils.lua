@@ -79,12 +79,13 @@ function M.cleanup_priority_selection(select_buf, select_win, keymaps)
 end
 
 -- Helper function for formatting based on format config
-function M.render_todo(todo, formatting, lang, notes_icon)
+function M.render_todo(todo, formatting, lang, notes_icon, window_width)
 	if not formatting or not formatting.pending or not formatting.done then
 		error("Invalid 'formatting' configuration in config.lua")
 	end
 
 	local components = {}
+	local timestamp = ""
 
 	-- Get config formatting
 	local format = todo.done and formatting.done.format or formatting.pending.format
@@ -110,7 +111,7 @@ function M.render_todo(todo, formatting, lang, notes_icon)
 			table.insert(components, notes_icon)
 		elseif part == "relative_time" then
 			if todo.created_at and config.options.timestamp and config.options.timestamp.enabled then
-				table.insert(components, "@" .. M.format_relative_time(todo.created_at))
+				timestamp = "@" .. M.format_relative_time(todo.created_at)
 			end
 		elseif part == "due_date" then
 			-- Format due date if exists
@@ -164,8 +165,28 @@ function M.render_todo(todo, formatting, lang, notes_icon)
 		end
 	end
 
-	-- Join the components into a single string
-	return table.concat(components, " ")
+	-- Join the main components (without timestamp)
+	local main_content = table.concat(components, " ")
+	
+	-- If we have a timestamp and window width, position it at the right
+	if timestamp ~= "" and window_width then
+		local main_length = vim.fn.strdisplaywidth(main_content)
+		local timestamp_length = vim.fn.strdisplaywidth(timestamp)
+		local available_space = window_width - main_length - timestamp_length - 4 -- Account for padding and borders
+		
+		if available_space > 1 then
+			-- Add spaces to push timestamp to the right
+			main_content = main_content .. string.rep(" ", available_space) .. timestamp
+		else
+			-- If not enough space, just append normally
+			main_content = main_content .. " " .. timestamp
+		end
+	elseif timestamp ~= "" then
+		-- Fallback if no window width provided
+		main_content = main_content .. " " .. timestamp
+	end
+
+	return main_content
 end
 
 return M 
