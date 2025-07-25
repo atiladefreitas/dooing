@@ -214,9 +214,10 @@ function M.render_todos()
 					add_hl(line_nr, start_idx, start_idx + #tag_pattern, "Type")
 				end
 
-				-- Due date and overdue highlights
+				-- Due date highlights
 				-- Match various due date formats: [icon date], [date], [@ date]
 				local due_date_patterns = {
+					"%[!.-%d+.-%d+.-%d+%]", -- Overdue date pattern with ! prefix
 					"%[.-%d+.-%d+.-%d+%]", -- General date pattern with brackets
 					"%[@ .-%]" -- @ format pattern
 				}
@@ -224,13 +225,15 @@ function M.render_todos()
 					local start_idx = line:find(pattern)
 					if start_idx then
 						local match = line:match(pattern)
-						-- Don't highlight OVERDUE part
-						if not match:find("OVERDUE") then
+						if match:find("^%[!") then
+							-- Overdue date - highlight in red
+							add_hl(line_nr, start_idx - 1, start_idx + #match - 1, "ErrorMsg")
+						else
+							-- Normal date - highlight in grey
 							add_hl(line_nr, start_idx - 1, start_idx + #match - 1, "DooingTimestamp")
 						end
 					end
 				end
-				highlight_pattern(line, line_nr, "%[OVERDUE%]", "ErrorMsg")
 
 				-- Time estimation highlight
 				local ect_pattern = "%[≈ [%d%.]+[mhdw]%]"

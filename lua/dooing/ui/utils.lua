@@ -130,15 +130,23 @@ function M.render_todo(todo, formatting, lang, notes_icon, window_width)
 				else
 					formatted_date = string.format("%s %d, %d", month, date.day, date.year)
 				end
-				local due_date_str
-				if config.options.calendar.icon ~= "" then
-					due_date_str = "[" .. config.options.calendar.icon .. " " .. formatted_date .. "]"
-				else
-					due_date_str = "[" .. formatted_date .. "]"
-				end
+				
 				local current_time = os.time()
-				if not todo.done and todo.due_at < current_time then
-					due_date_str = due_date_str .. " [OVERDUE]"
+				local is_overdue = not todo.done and todo.due_at < current_time
+				local due_date_str
+				
+				if config.options.calendar.icon ~= "" then
+					if is_overdue then
+						due_date_str = "[!" .. config.options.calendar.icon .. " " .. formatted_date .. "]"
+					else
+						due_date_str = "[" .. config.options.calendar.icon .. " " .. formatted_date .. "]"
+					end
+				else
+					if is_overdue then
+						due_date_str = "[!" .. formatted_date .. "]"
+					else
+						due_date_str = "[" .. formatted_date .. "]"
+					end
 				end
 				table.insert(components, due_date_str)
 			end
