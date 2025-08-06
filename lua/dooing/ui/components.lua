@@ -430,11 +430,11 @@ function M.open_todo_scratchpad()
 
   vim.api.nvim_create_autocmd("WinLeave", {
     buffer = scratch_buf,
-    callback = close_notes,
+    callback = save_notes,
   })
 
   vim.keymap.set("n", "<CR>", save_notes, { buffer = scratch_buf })
-  vim.keymap.set("n", "<Esc>", close_notes, { buffer = scratch_buf })
+  vim.keymap.set("n", "<Esc>", save_notes, { buffer = scratch_buf })
 end
 
 return M

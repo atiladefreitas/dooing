@@ -16,7 +16,7 @@ M.defaults = {
 	},
 	quick_keys = true,
 	notes = {
-		icon = "📓",
+		icon = "󱞁",
 	},
 	timestamp = {
 		enabled = true,
