@@ -76,6 +76,7 @@ M.defaults = {
 		default_filename = "dooing.json",
 		auto_gitignore = false,
 		on_missing = "prompt",
+		auto_open_project_todos = false,
 	},
 	keymaps = {
 		toggle_window = "<leader>td",

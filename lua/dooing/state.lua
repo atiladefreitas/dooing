@@ -81,6 +81,43 @@ function M.project_todo_exists()
 	return false
 end
 
+-- Check if project has todos (file exists and contains todos)
+function M.has_project_todos()
+	-- Check if we're in a git repository
+	local git_root = M.get_git_root()
+	if not git_root then
+		return false
+	end
+	
+	-- Check if project todo file exists
+	local path = M.get_project_todo_path()
+	if not path then
+		return false
+	end
+	
+	-- Check if file exists and has content
+	local file = io.open(path, "r")
+	if not file then
+		return false
+	end
+	
+	local content = file:read("*all")
+	file:close()
+	
+	-- Check if file has actual todos
+	if not content or content == "" then
+		return false
+	end
+	
+	-- Try to parse the JSON content
+	local success, todos = pcall(vim.fn.json_decode, content)
+	if not success or not todos or type(todos) ~= "table" or #todos == 0 then
+		return false
+	end
+	
+	return true
+end
+
 -- Load todos from specific path
 function M.load_todos_from_path(path)
 	M.current_save_path = path

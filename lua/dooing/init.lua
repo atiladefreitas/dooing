@@ -7,6 +7,27 @@ function M.setup(opts)
 	config.setup(opts)
 	state.load_todos()
 
+	-- Auto-open project todos if configured
+	if config.options.per_project.enabled and config.options.per_project.auto_open_project_todos then
+		-- Defer to avoid startup conflicts
+		vim.defer_fn(function()
+			-- Only auto-open if no todo window is already open
+			if not ui.is_window_open() and state.has_project_todos() then
+				-- Load project todos
+				local project_path = state.get_project_todo_path()
+				state.load_todos_from_path(project_path)
+				
+				-- Open the todo window
+				ui.toggle_todo_window()
+				
+				-- Notify user
+				local git_root = state.get_git_root()
+				local project_name = vim.fn.fnamemodify(git_root, ":t")
+				vim.notify("Auto-opened project todos for: " .. project_name, vim.log.levels.INFO, { title = "Dooing" })
+			end
+		end, 100) -- Small delay to ensure everything is loaded
+	end
+
 	vim.api.nvim_create_user_command("Dooing", function(opts)
 		local args = vim.split(opts.args, "%s+", { trimempty = true })
 		if #args == 0 then

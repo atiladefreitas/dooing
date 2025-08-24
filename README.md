@@ -104,6 +104,7 @@ Dooing comes with sensible defaults that you can override:
         default_filename = "dooing.json",      -- Default filename for project todos
         auto_gitignore = false,                -- Auto-add to .gitignore (true/false/"prompt")
         on_missing = "prompt",                 -- What to do when file missing ("prompt"/"auto_create")
+        auto_open_project_todos = false,       -- Auto-open project todos on startup if they exist
     },
 
     -- Nested tasks
@@ -221,6 +222,8 @@ per_project = {
                                       -- Set to true for auto-add, "prompt" to ask, false to skip
     on_missing = "prompt",            -- What to do when project todo file doesn't exist
                                       -- "prompt" = ask user, "auto_create" = create automatically
+    auto_open_project_todos = false,  -- Auto-open project todos on startup if they exist
+                                      -- Opens window automatically when entering a git project with todos
 }
 ```
 
