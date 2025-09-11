@@ -130,11 +130,11 @@ function M.render_todo(todo, formatting, lang, notes_icon, window_width)
 				else
 					formatted_date = string.format("%s %d, %d", month, date.day, date.year)
 				end
-				
+
 				local current_time = os.time()
 				local is_overdue = not todo.done and todo.due_at < current_time
 				local due_date_str
-				
+
 				if config.options.calendar.icon ~= "" then
 					if is_overdue then
 						due_date_str = "[!" .. config.options.calendar.icon .. " " .. formatted_date .. "]"
@@ -166,7 +166,7 @@ function M.render_todo(todo, formatting, lang, notes_icon, window_width)
 				elseif todo.estimated_hours >= 1 then -- more than an hour
 					time_str = string.format("[≈ %gh]", todo.estimated_hours)
 				else -- less than an hour
-					time_str = string.format("[≈ %gm]", todo.estimated_hours * 60)
+					time_str = string.format("[≈ %.0fm]", todo.estimated_hours * 60)
 				end
 				table.insert(components, time_str)
 			end
@@ -175,13 +175,13 @@ function M.render_todo(todo, formatting, lang, notes_icon, window_width)
 
 	-- Join the main components (without timestamp)
 	local main_content = table.concat(components, " ")
-	
+
 	-- If we have a timestamp and window width, position it at the right
 	if timestamp ~= "" and window_width then
 		local main_length = vim.fn.strdisplaywidth(main_content)
 		local timestamp_length = vim.fn.strdisplaywidth(timestamp)
 		local available_space = window_width - main_length - timestamp_length - 4 -- Account for padding and borders
-		
+
 		if available_space > 1 then
 			-- Add spaces to push timestamp to the right
 			main_content = main_content .. string.rep(" ", available_space) .. timestamp
@@ -197,4 +197,5 @@ function M.render_todo(todo, formatting, lang, notes_icon, window_width)
 	return main_content
 end
 
-return M 
+return M
+
