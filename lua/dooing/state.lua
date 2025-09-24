@@ -41,6 +41,8 @@ end
 
 -- Get git root directory
 function M.get_git_root()
+	local devnull = (vim.loop.os_uname().sysname == "Windows_NT") and "NUL"
+		or "/dev/null"
 	local handle = io.popen("git rev-parse --show-toplevel 2>/dev/null")
 	if not handle then
 		return nil
