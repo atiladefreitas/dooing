@@ -196,6 +196,10 @@ end
 -- Creates a new todo item
 function M.new_todo()
 	vim.ui.input({ prompt = "New to-do: " }, function(input)
+		if not input or input == "" then
+			return
+		end
+
 		input = input:gsub("\n", " ")
 		if input and input ~= "" then
 			-- Check if priorities are configured
