@@ -951,7 +951,7 @@ function M.delete_todo_with_confirmation(todo_index, win_id, calendar, callback)
 		width = width,
 		height = height,
 		style = "minimal",
-		border = "rounded",
+		border = config.options.window.border,
 		title = " Delete incomplete todo? ",
 		title_pos = "center",
 		footer = " [Y]es - [N]o ",

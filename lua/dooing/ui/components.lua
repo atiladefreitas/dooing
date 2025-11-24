@@ -31,7 +31,7 @@ function M.create_help_window()
     width = width,
     height = height,
     style = "minimal",
-    border = "rounded",
+    border = config.options.window.border,
     title = " help ",
     title_pos = "center",
     zindex = 100,
@@ -141,7 +141,7 @@ function M.create_tag_window()
     width = width,
     height = height,
     style = "minimal",
-    border = "rounded",
+    border = config.options.window.border,
     title = " tags ",
     title_pos = "center",
   })
@@ -326,7 +326,7 @@ function M.create_search_window()
     width = width,
     height = height,
     style = "minimal",
-    border = "rounded",
+    border = config.options.window.border,
     title = " Search Todos ",
     title_pos = "center",
   })
@@ -397,7 +397,7 @@ function M.open_todo_scratchpad()
     row = row,
     col = col,
     style = "minimal",
-    border = "rounded",
+    border = config.options.window.border,
     title = " Scratchpad ",
     title_pos = "center",
   })

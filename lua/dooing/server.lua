@@ -155,7 +155,7 @@ function M.start_qr_server()
 			row = math.floor((vim.o.lines - 8) / 2),
 			col = math.floor((vim.o.columns - 50) / 2),
 			style = "minimal",
-			border = "rounded",
+			border = config.options.window.border,
 			title = " Dooing Share ",
 			title_pos = "center",
 		})
