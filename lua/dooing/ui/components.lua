@@ -63,7 +63,6 @@ function M.create_help_window()
     string.format(" %-12s - Open todo scratchpad", keys.open_todo_scratchpad),
     string.format(" %-12s - Toggle priority on add todo", keys.toggle_priority),
     string.format(" %-12s - Refresh todo list", keys.refresh_todos),
-    string.format(" %-12s - Share todos (experimental - app functionality)", keys.share_todos),
     "",
     " Tags window:",
     string.format(" %-12s - Edit tag", keys.edit_tag),

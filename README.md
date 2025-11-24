@@ -144,7 +144,6 @@ Dooing comes with sensible defaults that you can override:
         remove_duplicates = "<leader>D",
         open_todo_scratchpad = "<leader>p",
         refresh_todos = "f",
-        share_todos = "s",
     },
 
     calendar = {
@@ -274,7 +273,6 @@ Dooing comes with intuitive keybindings:
 | `<leader>D`  | Remove duplicates            |
 | `<leader>p`  | Open todo scratchpad         |
 | `f`          | Refresh todo list            |
-| `s`          | Share todos [EXPERIMENTAL]                  |
 
 #### Tags Window
 | Key    | Action        |

@@ -98,7 +98,6 @@ M.defaults = {
 		edit_tag = "e",
 		edit_priorities = "p",
 		delete_tag = "d",
-		share_todos = "s",
 		search_todos = "/",
 		add_time_estimation = "T",
 		remove_time_estimation = "R",
