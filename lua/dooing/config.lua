@@ -70,6 +70,11 @@ M.defaults = {
 		retain_structure_on_complete = true,
 		move_completed_to_end = true,
 	},
+	due_notifications = {
+		enabled = true,
+		on_startup = true,
+		on_open = true,
+	},
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
 	per_project = {
 		enabled = true,
@@ -81,6 +86,7 @@ M.defaults = {
 	keymaps = {
 		toggle_window = "<leader>td",
 		open_project_todo = "<leader>tD",
+		show_due_notification = "<leader>tN",
 		new_todo = "i",
 		create_nested_task = "<leader>tn",
 		toggle_todo = "x",

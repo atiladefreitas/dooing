@@ -7,6 +7,38 @@ function M.setup(opts)
 	config.setup(opts)
 	state.load_todos()
 
+	-- Check for due items on startup and notify
+	-- Skip if auto_open_project_todos is enabled (it will show notification when opening)
+	if config.options.due_notifications and config.options.due_notifications.enabled and config.options.due_notifications.on_startup then
+		local should_auto_open = config.options.per_project.enabled and 
+		                         config.options.per_project.auto_open_project_todos and 
+		                         state.has_project_todos()
+		
+		if not should_auto_open then
+			vim.defer_fn(function()
+				-- Check if we have project todos
+				local has_project = config.options.per_project.enabled and state.has_project_todos()
+				
+				if has_project then
+					-- Load project todos to check for due items
+					local project_path = state.get_project_todo_path()
+					local current_save = state.current_save_path
+					state.load_todos_from_path(project_path)
+					state.show_due_notification()
+					-- Restore previous state
+					if current_save then
+						state.load_todos_from_path(current_save)
+					else
+						state.load_todos()
+					end
+				else
+					-- Check global todos for due items
+					state.show_due_notification()
+				end
+			end, 200) -- Small delay after Neovim startup
+		end
+	end
+
 	-- Auto-open project todos if configured
 	if config.options.per_project.enabled and config.options.per_project.auto_open_project_todos then
 		-- Defer to avoid startup conflicts
@@ -238,6 +270,13 @@ function M.setup(opts)
 		desc = "Open project-specific todo list",
 	})
 
+	-- Create DooingDue command for due notifications
+	vim.api.nvim_create_user_command("DooingDue", function()
+		M.show_due_notification()
+	end, {
+		desc = "Show due and overdue items notification",
+	})
+
 	-- Only set up keymap if it's enabled in config
 	if config.options.keymaps.toggle_window then
 		vim.keymap.set("n", config.options.keymaps.toggle_window, function()
@@ -250,6 +289,13 @@ function M.setup(opts)
 		vim.keymap.set("n", config.options.keymaps.open_project_todo, function()
 			M.open_project_todo()
 		end, { desc = "Open Local Project Todo List" })
+	end
+
+	-- Set up due notification keymap if enabled
+	if config.options.keymaps.show_due_notification then
+		vim.keymap.set("n", config.options.keymaps.show_due_notification, function()
+			M.show_due_notification()
+		end, { desc = "Show Due Items Notification" })
 	end
 end
 
@@ -268,6 +314,13 @@ function M.open_global_todo()
 	end
 	
 	vim.notify("Opened global todos", vim.log.levels.INFO, { title = "Dooing" })
+	
+	-- Show due items notification if enabled
+	if config.options.due_notifications and config.options.due_notifications.enabled and config.options.due_notifications.on_open then
+		vim.defer_fn(function()
+			state.show_due_notification()
+		end, 100)
+	end
 end
 
 -- Open project-specific todo list
@@ -300,6 +353,13 @@ function M.open_project_todo()
 		
 		local project_name = vim.fn.fnamemodify(git_root, ":t")
 		vim.notify("Opened project todos for: " .. project_name, vim.log.levels.INFO, { title = "Dooing" })
+		
+		-- Show due items notification if enabled
+		if config.options.due_notifications and config.options.due_notifications.enabled and config.options.due_notifications.on_open then
+			vim.defer_fn(function()
+				state.show_due_notification()
+			end, 100)
+		end
 	else
 		-- Handle missing project todo file
 		if config.options.per_project.on_missing == "auto_create" then
@@ -385,6 +445,12 @@ function M.prompt_create_project_todo(path)
 			end)
 		end
 	end)
+end
+
+-- Show due items notification
+function M.show_due_notification()
+	local due_notification = require("dooing.ui.due_notification")
+	due_notification.show_due_notification()
 end
 
 return M

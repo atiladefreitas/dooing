@@ -16,6 +16,8 @@ Dooing is a minimalist todo list manager for Neovim, designed with simplicity an
 - 🛠️ Compatible with **Lazy.nvim** for effortless installation
 - ⏰ **Relative timestamps** showing when todos were created
 - 📂 **Per-project todos** with git integration
+- 🔔 **Smart due date notifications** on startup and when opening todos
+- 📅 **Due items window** to view and jump to all due tasks
 
 ---
 
@@ -115,10 +117,18 @@ Dooing comes with sensible defaults that you can override:
         move_completed_to_end = true,         -- Move completed nested tasks to end of parent group
     },
 
+    -- Due date notifications
+    due_notifications = {
+        enabled = true,                        -- Enable due date notifications
+        on_startup = true,                    -- Show notification on Neovim startup
+        on_open = true,                       -- Show notification when opening todos
+    },
+
     -- Keymaps
     keymaps = {
         toggle_window = "<leader>td",          -- Toggle global todos
         open_project_todo = "<leader>tD",      -- Toggle project-specific todos
+        show_due_notification = "<leader>tN",  -- Show due items window
         new_todo = "i",
         create_nested_task = "<leader>tn",     -- Create nested subtask under current todo
         toggle_todo = "x",
@@ -234,6 +244,7 @@ Dooing provides several commands for task management:
 
 - `:Dooing` - Opens the global todo window
 - `:DooingLocal` - Opens the project-specific todo window (git repositories only)
+- `:DooingDue` - Opens a window showing all due and overdue items
 - `:Dooing add [text]` - Adds a new task
   - `-p, --priorities [list]` - Comma-separated list of priorities (e.g. "important,urgent")
 - `:Dooing list` - Lists all todos with their indices and metadata
@@ -250,7 +261,9 @@ Dooing comes with intuitive keybindings:
 #### Main Window
 | Key           | Action                        |
 |--------------|------------------------------|
-| `<leader>td` | Toggle todo window           |
+| `<leader>td` | Toggle global todo window    |
+| `<leader>tD` | Toggle project todo window   |
+| `<leader>tN` | Show due items window        |
 | `i`          | Add new todo                 |
 | `<leader>tn` | Create nested subtask        |
 | `x`          | Toggle todo status           |
@@ -293,6 +306,46 @@ Dooing comes with intuitive keybindings:
 | `L`    | Next month        |
 | `<CR>` | Select date       |
 | `q`    | Close calendar    |
+
+---
+
+## 🔔 Due Date Notifications
+
+Dooing includes smart notifications to keep you aware of upcoming and overdue tasks.
+
+### How it works
+
+- **On Startup**: Automatically checks for due items when Neovim starts
+  - Shows project todos if you're in a git repository with a todo file
+  - Falls back to global todos otherwise
+- **When Opening Todos**: Shows notification when you open global or project todos
+- **Due Items Window**: Press `<leader>tN` to see all due items in an interactive window
+  - Navigate through items
+  - Press `<CR>` to jump to a specific todo
+
+### Notification Format
+
+Notifications appear in red and show:
+```
+3 items due
+```
+
+### Configuration
+
+```lua
+due_notifications = {
+    enabled = true,        -- Master switch for due notifications
+    on_startup = true,    -- Show notification when Neovim starts
+    on_open = true,       -- Show notification when opening todo windows
+}
+```
+
+To disable notifications entirely:
+```lua
+due_notifications = {
+    enabled = false,
+}
+```
 
 ---
 

@@ -28,7 +28,7 @@ local function save_todos()
 	end
 end
 
--- Expose it as part of the module  
+-- Expose it as part of the module
 M.save_todos = save_todos
 M.save_todos_to_current_path = function()
 	local save_path = M.current_save_path or config.options.save_path
@@ -41,20 +41,19 @@ end
 
 -- Get git root directory
 function M.get_git_root()
-	local devnull = (vim.uv.os_uname().sysname == "Windows_NT") and "NUL"
-		or "/dev/null"
+	local devnull = (vim.uv.os_uname().sysname == "Windows_NT") and "NUL" or "/dev/null"
 	local handle = io.popen("git rev-parse --show-toplevel 2>" .. devnull)
 	if not handle then
 		return nil
 	end
-	
+
 	local result = handle:read("*a")
 	handle:close()
-	
+
 	if result and result ~= "" then
 		return vim.trim(result)
 	end
-	
+
 	return nil
 end
 
@@ -64,7 +63,7 @@ function M.get_project_todo_path()
 	if not git_root then
 		return nil
 	end
-	
+
 	return git_root .. "/" .. config.options.per_project.default_filename
 end
 
@@ -74,7 +73,7 @@ function M.project_todo_exists()
 	if not path then
 		return false
 	end
-	
+
 	local file = io.open(path, "r")
 	if file then
 		file:close()
@@ -90,40 +89,40 @@ function M.has_project_todos()
 	if not git_root then
 		return false
 	end
-	
+
 	-- Check if project todo file exists
 	local path = M.get_project_todo_path()
 	if not path then
 		return false
 	end
-	
+
 	-- Check if file exists and has content
 	local file = io.open(path, "r")
 	if not file then
 		return false
 	end
-	
+
 	local content = file:read("*all")
 	file:close()
-	
+
 	-- Check if file has actual todos
 	if not content or content == "" then
 		return false
 	end
-	
+
 	-- Try to parse the JSON content
 	local success, todos = pcall(vim.fn.json_decode, content)
 	if not success or not todos or type(todos) ~= "table" or #todos == 0 then
 		return false
 	end
-	
+
 	return true
 end
 
 -- Load todos from specific path
 function M.load_todos_from_path(path)
 	M.current_save_path = path
-	
+
 	-- Set context based on path
 	local git_root = M.get_git_root()
 	if git_root then
@@ -131,7 +130,7 @@ function M.load_todos_from_path(path)
 	else
 		M.current_context = "project"
 	end
-	
+
 	update_priority_weights()
 	local file = io.open(path, "r")
 	if file then
@@ -149,8 +148,6 @@ function M.load_todos_from_path(path)
 	end
 end
 
-
-
 -- Get window title based on current context
 function M.get_window_title()
 	if M.current_context == "global" then
@@ -166,21 +163,21 @@ function M.add_to_gitignore(filename)
 	if not git_root then
 		return false, "Not in a git repository"
 	end
-	
+
 	local gitignore_path = git_root .. "/.gitignore"
 	local file = io.open(gitignore_path, "r")
 	local content = ""
-	
+
 	if file then
 		content = file:read("*all")
 		file:close()
-		
+
 		-- Check if already ignored
 		if content:find(filename, 1, true) then
 			return true, "Already in .gitignore"
 		end
 	end
-	
+
 	-- Append to gitignore
 	file = io.open(gitignore_path, "a")
 	if file then
@@ -191,7 +188,7 @@ function M.add_to_gitignore(filename)
 		file:close()
 		return true, "Added to .gitignore"
 	end
-	
+
 	return false, "Failed to write to .gitignore"
 end
 
@@ -222,7 +219,7 @@ function M.migrate_todos()
 		if not todo.id then
 			todo.id = os.time() .. "_" .. i .. "_" .. math.random(1000, 9999)
 		end
-		
+
 		-- Add nesting fields if missing
 		if todo.parent_id == nil then
 			todo.parent_id = nil
@@ -238,7 +235,7 @@ end
 function M.add_todo(text, priority_names)
 	-- Generate unique ID using timestamp and random component
 	local unique_id = os.time() .. "_" .. math.random(1000, 9999)
-	
+
 	table.insert(M.todos, {
 		id = unique_id,
 		text = text,
@@ -261,18 +258,18 @@ function M.add_nested_todo(text, parent_index, priority_names)
 	if not config.options.nested_tasks or not config.options.nested_tasks.enabled then
 		return false, "Nested tasks are disabled"
 	end
-	
+
 	if not M.todos[parent_index] then
 		return false, "Parent todo not found"
 	end
-	
+
 	local parent_todo = M.todos[parent_index]
 	local parent_depth = parent_todo.depth or 0
 	local parent_id = parent_todo.id -- Use stable ID instead of index
-	
+
 	-- Generate unique ID for nested todo
 	local unique_id = os.time() .. "_" .. math.random(1000, 9999)
-	
+
 	-- Create nested todo
 	local nested_todo = {
 		id = unique_id,
@@ -287,14 +284,13 @@ function M.add_nested_todo(text, parent_index, priority_names)
 		parent_id = parent_id,
 		depth = parent_depth + 1,
 	}
-	
+
 	-- Insert after parent and its existing children
 	local insert_position = parent_index + 1
-	while insert_position <= #M.todos and 
-		  M.todos[insert_position].parent_id == parent_id do
+	while insert_position <= #M.todos and M.todos[insert_position].parent_id == parent_id do
 		insert_position = insert_position + 1
 	end
-	
+
 	table.insert(M.todos, insert_position, nested_todo)
 	save_todos()
 	return true
@@ -370,11 +366,11 @@ function M.add_due_date(index, date_str)
 
 	local timestamp, err = parse_date(date_str)
 	if timestamp then
-    local date_table = os.date("*t", timestamp)
-    date_table.hour = 23
-    date_table.min = 59
-    date_table.sec = 59
-    timestamp = os.time(date_table)
+		local date_table = os.date("*t", timestamp)
+		date_table.hour = 23
+		date_table.min = 59
+		date_table.sec = 59
+		timestamp = os.time(date_table)
 
 		M.todos[index].due_at = timestamp
 		M.save_todos()
@@ -469,7 +465,7 @@ end
 function M.delete_completed_structure_aware()
 	local remaining_todos = {}
 	local orphaned_todos = {}
-	
+
 	-- First pass: collect remaining todos and identify orphans
 	for _, todo in ipairs(M.todos) do
 		if not todo.done then
@@ -487,7 +483,7 @@ function M.delete_completed_structure_aware()
 			table.insert(orphaned_todos, todo)
 		end
 	end
-	
+
 	-- Second pass: handle orphaned nested tasks
 	for _, orphan in ipairs(orphaned_todos) do
 		local parent_exists = false
@@ -497,7 +493,7 @@ function M.delete_completed_structure_aware()
 				break
 			end
 		end
-		
+
 		if parent_exists then
 			-- Parent still exists, keep the orphaned task
 			table.insert(remaining_todos, orphan)
@@ -510,7 +506,7 @@ function M.delete_completed_structure_aware()
 			end
 		end
 	end
-	
+
 	M.todos = remaining_todos
 	save_todos()
 end
@@ -573,9 +569,9 @@ end
 
 -- Helper function to check if nested tasks are enabled
 function M.nested_tasks_enabled()
-	return config.options.nested_tasks and 
-		   config.options.nested_tasks.enabled and 
-		   config.options.nested_tasks.retain_structure_on_complete
+	return config.options.nested_tasks
+		and config.options.nested_tasks.enabled
+		and config.options.nested_tasks.retain_structure_on_complete
 end
 
 function M.sort_todos()
@@ -634,22 +630,22 @@ function M.sort_todos_with_structure()
 	-- Group todos by their hierarchical structure
 	local top_level = {}
 	local nested_groups = {}
-	
+
 	-- Separate top-level todos and group nested ones by parent
 	for i, todo in ipairs(M.todos) do
 		if not todo.parent_id then
-			table.insert(top_level, {todo = todo, original_index = i, children = {}})
+			table.insert(top_level, { todo = todo, original_index = i, children = {} })
 		else
 			if not nested_groups[todo.parent_id] then
 				nested_groups[todo.parent_id] = {}
 			end
-			table.insert(nested_groups[todo.parent_id], {todo = todo, original_index = i})
+			table.insert(nested_groups[todo.parent_id], { todo = todo, original_index = i })
 		end
 	end
-	
+
 	-- Sort top-level todos
 	table.sort(top_level, M.compare_todos)
-	
+
 	-- Sort nested groups
 	for parent_id, children in pairs(nested_groups) do
 		if config.options.nested_tasks.move_completed_to_end then
@@ -662,12 +658,12 @@ function M.sort_todos_with_structure()
 			end)
 		end
 	end
-	
+
 	-- Rebuild the todos array maintaining structure
 	local new_todos = {}
 	for _, parent_data in ipairs(top_level) do
 		table.insert(new_todos, parent_data.todo)
-		
+
 		-- Add children after parent
 		local children = nested_groups[parent_data.todo.id]
 		if children then
@@ -676,7 +672,7 @@ function M.sort_todos_with_structure()
 			end
 		end
 	end
-	
+
 	M.todos = new_todos
 end
 
@@ -684,7 +680,7 @@ end
 function M.compare_todos(a, b)
 	local todo_a = a.todo
 	local todo_b = b.todo
-	
+
 	-- First sort by completion status
 	if todo_a.done ~= todo_b.done then
 		return not todo_a.done -- Undone items come first
@@ -726,7 +722,7 @@ end
 function M.compare_todos_ignore_completion(a, b)
 	local todo_a = a.todo
 	local todo_b = b.todo
-	
+
 	-- Sort by priority score if configured
 	if config.options.priorities and #config.options.priorities > 0 then
 		local a_score = M.get_priority_score(todo_a)
@@ -1082,6 +1078,50 @@ end
 -- In state.lua, add these at the top with other local variables:
 local deleted_todos = {}
 local MAX_UNDO_HISTORY = 100
+
+-- Get count of due and overdue todos
+function M.get_due_count()
+	local now = os.time()
+	local today_start = os.time(os.date("*t", now))
+	local today_end = today_start + 86400 -- 24 hours
+
+	local due_today = 0
+	local overdue = 0
+
+	for _, todo in ipairs(M.todos) do
+		if todo.due_at and not todo.done then
+			if todo.due_at < today_start then
+				overdue = overdue + 1
+			elseif todo.due_at <= today_end then
+				due_today = due_today + 1
+			end
+		end
+	end
+
+	return {
+		overdue = overdue,
+		due_today = due_today,
+		total = overdue + due_today,
+	}
+end
+
+-- Show due items notification
+function M.show_due_notification()
+	local due_count = M.get_due_count()
+
+	if due_count.total == 0 then
+		return -- Don't show notification if nothing is due
+	end
+
+	local config = require("dooing.config")
+	if not config.options.due_notifications or not config.options.due_notifications.enabled then
+		return
+	end
+
+	local message = string.format("%d item%s due", due_count.total, due_count.total == 1 and "" or "s")
+
+	vim.notify(message, vim.log.levels.ERROR, { title = "Dooing" })
+end
 
 -- Add these functions to state.lua:
 function M.store_deleted_todo(todo, index)
