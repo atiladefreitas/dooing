@@ -625,7 +625,7 @@ function M.sort_todos_flat()
 	end)
 end
 
--- Structure-preserving sorting for nested tasks
+-- Structure-preserving sorting for nested tasks (supports multi-level nesting)
 function M.sort_todos_with_structure()
 	-- Group todos by their hierarchical structure
 	local top_level = {}
@@ -634,8 +634,10 @@ function M.sort_todos_with_structure()
 	-- Separate top-level todos and group nested ones by parent
 	for i, todo in ipairs(M.todos) do
 		if not todo.parent_id then
-			table.insert(top_level, { todo = todo, original_index = i, children = {} })
+			-- Top-level todo
+			table.insert(top_level, { todo = todo, original_index = i })
 		else
+			-- Nested todo, group by its direct parent_id
 			if not nested_groups[todo.parent_id] then
 				nested_groups[todo.parent_id] = {}
 			end
@@ -646,8 +648,8 @@ function M.sort_todos_with_structure()
 	-- Sort top-level todos
 	table.sort(top_level, M.compare_todos)
 
-	-- Sort nested groups
-	for parent_id, children in pairs(nested_groups) do
+	-- Sort each nested group using the appropriate comparison
+	for _, children in pairs(nested_groups) do
 		if config.options.nested_tasks.move_completed_to_end then
 			-- Sort children but keep completed at end within their group
 			table.sort(children, M.compare_todos)
@@ -659,18 +661,23 @@ function M.sort_todos_with_structure()
 		end
 	end
 
-	-- Rebuild the todos array maintaining structure
+	-- Recursively add a parent and all of its descendants in depth-first order
 	local new_todos = {}
-	for _, parent_data in ipairs(top_level) do
-		table.insert(new_todos, parent_data.todo)
+	local function add_with_children(parent_todo)
+		-- Insert the parent itself
+		table.insert(new_todos, parent_todo)
 
-		-- Add children after parent
-		local children = nested_groups[parent_data.todo.id]
+		-- Then insert all its direct children (if any), each followed by their own children
+		local children = nested_groups[parent_todo.id]
 		if children then
 			for _, child_data in ipairs(children) do
-				table.insert(new_todos, child_data.todo)
+				add_with_children(child_data.todo)
 			end
 		end
+	end
+
+	for _, parent_data in ipairs(top_level) do
+		add_with_children(parent_data.todo)
 	end
 
 	M.todos = new_todos
