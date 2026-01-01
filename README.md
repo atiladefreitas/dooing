@@ -53,6 +53,7 @@ Dooing comes with sensible defaults that you can override:
 {
     -- Core settings
     save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
+    pretty_print_json = false, -- Pretty-print JSON output (requires jq or python)
 
     -- Timestamp settings
     timestamp = {
