@@ -115,6 +115,7 @@ M.defaults = {
 	},
 	calendar = {
 		language = "en",
+		start_day = "sunday", -- or "monday"
 		icon = "",
 		keymaps = {
 			previous_day = "h",
