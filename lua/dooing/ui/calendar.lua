@@ -104,6 +104,17 @@ Cal.MONTH_NAMES = {
 	},
 }
 
+-- Weekday abbreviations for each language
+Cal.WEEKDAY_NAMES = {
+	en = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" },
+	pt = { "Do", "Se", "Te", "Qa", "Qi", "Se", "Sa" },
+	es = { "Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa" },
+	fr = { "Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa" },
+	de = { "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa" },
+	it = { "Do", "Lu", "Ma", "Me", "Gi", "Ve", "Sa" },
+	jp = { "日", "月", "火", "水", "木", "金", "土" },
+}
+
 -- Helper function get calendar language to use on ui
 function Cal.get_language()
 	local calendar_opts = config.options.calendar or {}
@@ -225,7 +236,8 @@ function Cal.create(callback, opts)
 		local lines = {}
 
 		table.insert(lines, "")
-		table.insert(lines, "  Su Mo Tu We Th Fr Sa  ")
+		local weekday_names = Cal.WEEKDAY_NAMES[language] or Cal.WEEKDAY_NAMES["en"]
+		table.insert(lines, "  " .. table.concat(weekday_names, " ") .. "  ")
 
 		local first_day = get_day_of_week(cal.year, cal.month, 1)
 		local days_in_month = get_days_in_month(cal.month, cal.year)
