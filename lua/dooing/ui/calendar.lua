@@ -104,6 +104,17 @@ Cal.MONTH_NAMES = {
 	},
 }
 
+-- Weekday abbreviations for each language
+Cal.WEEKDAY_NAMES = {
+	en = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" },
+	pt = { "Do", "Se", "Te", "Qa", "Qi", "Se", "Sa" },
+	es = { "Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa" },
+	fr = { "Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa" },
+	de = { "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa" },
+	it = { "Do", "Lu", "Ma", "Me", "Gi", "Ve", "Sa" },
+	jp = { "日", "月", "火", "水", "木", "金", "土" },
+}
+
 -- Helper function get calendar language to use on ui
 function Cal.get_language()
 	local calendar_opts = config.options.calendar or {}
@@ -140,10 +151,26 @@ local function setup_highlights()
 	vim.api.nvim_set_hl(0, "CalendarToday", { link = "Directory" })
 end
 
+local function shift_first_day(first_day, start_day)
+	if start_day == "monday" then
+		return (first_day - 1) % 7
+	end
+	return first_day
+end
+
+local function validate_start_day(start_day)
+	start_day = (start_day or "sunday"):lower()
+	if start_day ~= "sunday" and start_day ~= "monday" then
+		return "sunday"
+	end
+	return start_day
+end
+
 function Cal.create(callback, opts)
 	opts = opts or {}
 	local calendar_opts = config.options.calendar
 	local language = calendar_opts.language or "en"
+	local start_day = validate_start_day(calendar_opts.start_day)
 
 	local cal = {
 		year = os.date("*t").year,
@@ -188,7 +215,7 @@ function Cal.create(callback, opts)
 			return nil
 		end
 
-		local first_day = get_day_of_week(cal.year, cal.month, 1)
+		local first_day = shift_first_day(get_day_of_week(cal.year, cal.month, 1), start_day)
 		local days_in_month = get_days_in_month(cal.month, cal.year)
 
 		if day < 1 or day > days_in_month then
@@ -210,7 +237,7 @@ function Cal.create(callback, opts)
 
 		col = col - 2
 		local col_index = math.floor(col / 3)
-		local first_day = get_day_of_week(cal.year, cal.month, 1)
+		local first_day = shift_first_day(get_day_of_week(cal.year, cal.month, 1), start_day)
 		local day = (row - 3) * 7 + col_index - first_day + 1
 
 		if day < 1 or day > get_days_in_month(cal.month, cal.year) then
@@ -225,9 +252,19 @@ function Cal.create(callback, opts)
 		local lines = {}
 
 		table.insert(lines, "")
-		table.insert(lines, "  Su Mo Tu We Th Fr Sa  ")
+		local weekday_names = Cal.WEEKDAY_NAMES[language] or Cal.WEEKDAY_NAMES["en"]
+		-- Shift weekday names based on start_day
+		local shift = 0
+		if start_day == "monday" then
+			shift = 1
+		end
+		local shifted_weekdays = {}
+		for i = 1, 7 do
+			shifted_weekdays[i] = weekday_names[((i - 1 + shift) % 7) + 1]
+		end
+		table.insert(lines, "  " .. table.concat(shifted_weekdays, " ") .. "  ")
 
-		local first_day = get_day_of_week(cal.year, cal.month, 1)
+		local first_day = shift_first_day(get_day_of_week(cal.year, cal.month, 1), start_day)
 		local days_in_month = get_days_in_month(cal.month, cal.year)
 		local day_count = 1
 
@@ -263,7 +300,14 @@ function Cal.create(callback, opts)
 				local day_num = tonumber(day_str)
 
 				if day_num then
-					if col == 0 or col == 6 then
+					-- Weekend columns: Sunday=0,6; Monday=5,6
+					local is_weekend = false
+					if start_day == "monday" then
+						is_weekend = (col == 5 or col == 6)
+					else
+						is_weekend = (col == 0 or col == 6)
+					end
+					if is_weekend then
 						vim.api.nvim_buf_add_highlight(
 							cal.buf_id,
 							cal.ns_id,

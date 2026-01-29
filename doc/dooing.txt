@@ -98,10 +98,12 @@ The plugin can be configured by passing a table to the setup function:
         save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
         calendar = {
             language = "en",
+            start_day = "sunday",  -- or "monday"
             icon = "",
         },
     })
 <
+
 
 USAGE                                                          *dooing-usage*
 
@@ -185,9 +187,12 @@ CALENDAR                                                     *dooing-calendar*
 The calendar feature supports multiple languages and provides a visual way to
 set due dates. Supported languages: en, pt, es, fr, de, it, jp
 
+You can configure the start day of the week in the calendar by setting `calendar.start_day` to either `"sunday"` or `"monday"`. Any other value will default to `"sunday"`.
+
 Configure the calendar: >lua
     calendar = {
         language = "en",  -- Calendar language
+        start_day = "sunday",  -- or "monday"
         icon = "",      -- Icon for due dates
         keymaps = {
             previous_day = "h",
@@ -201,6 +206,7 @@ Configure the calendar: >lua
         },
     }
 <
+
 
 PRIORITY SYSTEM                                             *dooing-priorities*
 
