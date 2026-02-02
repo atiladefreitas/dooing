@@ -19,11 +19,39 @@ local function update_priority_weights()
 	end
 end
 
+local function encode_json(value)
+	local json_str = vim.json.encode(value, { sort_keys = true })
+
+	if not config.options.pretty_print_json then
+		return json_str
+	end
+
+	-- Try external formatters for pretty printing
+	local formatters = {
+		"jq -S .",
+		"python3 -m json.tool --sort-keys",
+		"python -m json.tool --sort-keys",
+	}
+
+	for _, cmd in ipairs(formatters) do
+		local exe = cmd:match("^(%S+)")
+		if exe and vim.fn.executable(exe) == 1 then
+			local result = vim.fn.system(cmd, json_str)
+			if vim.v.shell_error == 0 then
+				return result
+			end
+		end
+	end
+
+	-- Fallback to compact JSON if no formatter available
+	return json_str
+end
+
 local function save_todos()
 	local save_path = M.current_save_path or config.options.save_path
 	local file = io.open(save_path, "w")
 	if file then
-		file:write(vim.fn.json_encode(M.todos))
+		file:write(encode_json(M.todos))
 		file:close()
 	end
 end
@@ -34,7 +62,7 @@ M.save_todos_to_current_path = function()
 	local save_path = M.current_save_path or config.options.save_path
 	local file = io.open(save_path, "w")
 	if file then
-		file:write(vim.fn.json_encode(M.todos))
+		file:write(encode_json(M.todos))
 		file:close()
 	end
 end
@@ -817,7 +845,7 @@ function M.export_todos(file_path)
 		return false, "Could not open file for writing: " .. file_path
 	end
 
-	local json_content = vim.fn.json_encode(M.todos)
+	local json_content = encode_json(M.todos)
 	file:write(json_content)
 	file:close()
 
