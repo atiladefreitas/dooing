@@ -7,15 +7,111 @@ local highlights = require("dooing.ui.highlights")
 local config = require("dooing.config")
 local state = require("dooing.state")
 
--- Creates and configures the small keys window
-local function create_small_keys_window(main_win_pos)
+-- Quick keys panel height (fixed: 8 lines with border = 10 total)
+local QUICK_KEYS_CONTENT_LINES = 8
+local QUICK_KEYS_BORDER_HEIGHT = 2 -- top + bottom border
+
+-- Returns the total height of the quick keys panel (including border), or 0 if disabled
+local function get_quick_keys_height()
+	if not config.options.quick_keys then
+		return 0
+	end
+	return QUICK_KEYS_CONTENT_LINES + QUICK_KEYS_BORDER_HEIGHT
+end
+
+-- Returns the height of the tabline (0 or 1)
+local function get_tabline_height()
+	local showtabline = vim.o.showtabline
+	if showtabline == 2 then
+		return 1
+	elseif showtabline == 1 and #vim.api.nvim_list_tabpages() > 1 then
+		return 1
+	end
+	return 0
+end
+
+-- Returns the height of the statusline + cmdline
+local function get_bottom_offset()
+	local laststatus = vim.o.laststatus
+	local cmdheight = vim.o.cmdheight
+	local statusline = 0
+	if laststatus == 2 or laststatus == 3 then
+		statusline = 1
+	elseif laststatus == 1 and #vim.api.nvim_list_wins() > 1 then
+		statusline = 1
+	end
+	return statusline + cmdheight
+end
+
+-- Border character sets for different styles
+-- Format: { top-left, top, top-right, right, bottom-right, bottom, bottom-left, left }
+local BORDER_CHARS = {
+	rounded = { "╭", "─", "╮", "│", "╯", "─", "╰", "│" },
+	single = { "┌", "─", "┐", "│", "┘", "─", "└", "│" },
+	double = { "╔", "═", "╗", "║", "╝", "═", "╚", "║" },
+	solid = { "▛", "▀", "▜", "▐", "▟", "▄", "▙", "▌" },
+}
+
+-- T-junction characters for separator line (connects left/right borders)
+local SEPARATOR_CHARS = {
+	rounded = { left = "├", line = "─", right = "┤" },
+	single = { left = "├", line = "─", right = "┤" },
+	double = { left = "╠", line = "═", right = "╣" },
+	solid = { left = "▙", line = "▄", right = "▟" },
+}
+
+-- Get border array for a given style, or return the style if it's already an array
+local function get_border_chars(style)
+	if type(style) == "table" then
+		return style
+	end
+	return BORDER_CHARS[style] or BORDER_CHARS.rounded
+end
+
+-- Get separator chars for a given style
+local function get_separator_chars(style)
+	if type(style) == "string" then
+		return SEPARATOR_CHARS[style] or SEPARATOR_CHARS.rounded
+	end
+	-- For custom border arrays, fall back to rounded separators
+	return SEPARATOR_CHARS.rounded
+end
+
+-- Create border array for main window when fused (separator on connecting edge)
+local function get_main_border_fused(style, quick_panel_above)
+	local chars = get_border_chars(style)
+	local sep = get_separator_chars(style)
+	
+	if quick_panel_above then
+		-- Quick panel is above, so main's TOP edge is the separator
+		return { sep.left, sep.line, sep.right, chars[4], chars[5], chars[6], chars[7], chars[8] }
+	else
+		-- Quick panel is below, so main's BOTTOM edge is the separator
+		return { chars[1], chars[2], chars[3], chars[4], sep.right, sep.line, sep.left, chars[8] }
+	end
+end
+
+-- Create border array for quick keys panel when fused (no border on connecting edge)
+local function get_quick_border_fused(style, quick_panel_above)
+	local chars = get_border_chars(style)
+	
+	if quick_panel_above then
+		-- Quick panel is above main, so quick's BOTTOM edge connects (use spaces)
+		return { chars[1], chars[2], chars[3], chars[4], " ", " ", " ", chars[8] }
+	else
+		-- Quick panel is below main, so quick's TOP edge connects (use spaces)
+		return { " ", " ", " ", chars[4], chars[5], chars[6], chars[7], chars[8] }
+	end
+end
+
+-- Creates and configures the small keys window at the specified position
+local function create_small_keys_window(row, col, width, border)
 	if not config.options.quick_keys then
 		return nil
 	end
 
 	local keys = config.options.keymaps
 	local small_buf = vim.api.nvim_create_buf(false, true)
-	local width = config.options.window.width
 
 	-- Define two separate line arrays for each column
 	local lines_1 = {
@@ -41,12 +137,12 @@ local function create_small_keys_window(main_win_pos)
 
 	-- Calculate middle point for even spacing
 	local mid_point = math.floor(width / 2)
-	local padding = 2
+	local inner_padding = 2
 
 	-- Create combined lines with centered columns
 	local lines = {}
 	for i = 1, #lines_1 do
-		local line1 = lines_1[i] .. string.rep(" ", mid_point - #lines_1[i] - padding)
+		local line1 = lines_1[i] .. string.rep(" ", mid_point - #lines_1[i] - inner_padding)
 		local line2 = lines_2[i] or ""
 		lines[i] = line1 .. line2
 	end
@@ -55,21 +151,16 @@ local function create_small_keys_window(main_win_pos)
 	vim.api.nvim_buf_set_option(small_buf, "modifiable", false)
 	vim.api.nvim_buf_set_option(small_buf, "buftype", "nofile")
 
-	-- Position it under the main window
-	local row = main_win_pos.row + main_win_pos.height + 1
-
 	local small_win = vim.api.nvim_open_win(small_buf, false, {
 		relative = "editor",
 		row = row,
-		col = main_win_pos.col,
+		col = col,
 		width = width,
 		height = #lines,
 		style = "minimal",
-		border = config.options.window.border,
+		border = border,
 		focusable = false,
 		zindex = config.options.window.zindex,
-		footer = " Quick Keys ",
-		footer_pos = "center",
 	})
 
 	-- Add highlights
@@ -83,7 +174,7 @@ local function create_small_keys_window(main_win_pos)
 		if i > 0 then
 			-- Left column
 			vim.api.nvim_buf_add_highlight(small_buf, ns, "DooingQuickKey", i, 2, 3) -- Key
-			vim.api.nvim_buf_add_highlight(small_buf, ns, "DooingQuickDesc", i, 5, mid_point - padding) -- Description
+			vim.api.nvim_buf_add_highlight(small_buf, ns, "DooingQuickDesc", i, 5, mid_point - inner_padding) -- Description
 
 			-- Right column
 			local right_key_start = mid_point
@@ -100,38 +191,74 @@ function M.create_window()
 	local ui = vim.api.nvim_list_uis()[1]
 	local width = config.options.window.width
 	local height = config.options.window.height
+	local main_border_height = 2 -- top + bottom border
 	local position = config.options.window.position or "right"
-	local padding = 2 -- padding from screen edges
 
-	-- Calculate position based on config
-	local col, row
-	if position == "right" then
-		col = ui.width - width - padding
-		row = math.floor((ui.height - height) / 2)
-	elseif position == "left" then
-		col = padding
-		row = math.floor((ui.height - height) / 2)
-	elseif position == "top" then
+	local quick_keys_height = get_quick_keys_height()
+	local is_top_position = vim.tbl_contains({ "top", "top-left", "top-right" }, position)
+	local is_bottom_position = vim.tbl_contains({ "bottom", "bottom-left", "bottom-right" }, position)
+	local has_quick_keys = quick_keys_height > 0
+
+	-- Calculate vertical padding based on position
+	local top_padding = is_top_position and get_tabline_height() or 0
+	local bottom_padding = is_bottom_position and get_bottom_offset() or 0
+
+	-- Calculate column based on position
+	local col
+	if vim.tbl_contains({ "right", "top-right", "bottom-right" }, position) then
+		col = ui.width - width
+	elseif vim.tbl_contains({ "left", "top-left", "bottom-left" }, position) then
+		col = 0
+	else -- center, top, bottom
 		col = math.floor((ui.width - width) / 2)
-		row = padding
-	elseif position == "bottom" then
-		col = math.floor((ui.width - width) / 2)
-		row = ui.height - height - padding
-	elseif position == "top-right" then
-		col = ui.width - width - padding
-		row = padding
-	elseif position == "top-left" then
-		col = padding
-		row = padding
-	elseif position == "bottom-right" then
-		col = ui.width - width - padding
-		row = ui.height - height - padding
-	elseif position == "bottom-left" then
-		col = padding
-		row = ui.height - height - padding
-	else -- center or invalid position
-		col = math.floor((ui.width - width) / 2)
-		row = math.floor((ui.height - height) / 2)
+	end
+
+	-- Calculate rows for main window and quick keys panel
+	-- When fused, we use gap = -1 to overlap the borders
+	local main_row, quick_row
+	local fused_gap = -1 -- Overlap borders by 1 row for fused appearance
+
+	if not has_quick_keys then
+		-- No quick keys panel, use original positioning logic
+		if is_top_position then
+			main_row = top_padding
+		elseif is_bottom_position then
+			main_row = ui.height - height - main_border_height - bottom_padding
+		else -- left, right, center
+			main_row = math.floor((ui.height - height - main_border_height) / 2)
+		end
+		quick_row = nil
+	elseif is_top_position then
+		-- Quick panel at top, main window below (fused)
+		quick_row = top_padding
+		main_row = top_padding + quick_keys_height + fused_gap
+	else
+		-- Main window above, quick panel below (fused)
+		-- Account for fused_gap in total height calculation
+		local total_height = height + main_border_height + quick_keys_height + fused_gap
+
+		if is_bottom_position then
+			-- Anchor quick panel at bottom edge
+			quick_row = ui.height - quick_keys_height - bottom_padding
+			main_row = quick_row + fused_gap - height
+		else -- left, right, center
+			-- Center the combined stack vertically
+			local stack_start = math.floor((ui.height - total_height) / 2)
+			main_row = stack_start
+			quick_row = stack_start + height + main_border_height + fused_gap
+		end
+	end
+
+	-- Determine borders (fused or normal)
+	local main_border = config.options.window.border
+	local quick_border = config.options.window.border
+
+	if has_quick_keys then
+		-- Use fused borders for connected appearance
+		local border_style = config.options.window.border
+		local quick_panel_above = is_top_position
+		main_border = get_main_border_fused(border_style, quick_panel_above)
+		quick_border = get_quick_border_fused(border_style, quick_panel_above)
 	end
 
 	highlights.setup_highlights()
@@ -140,12 +267,12 @@ function M.create_window()
 
 	constants.win_id = vim.api.nvim_open_win(constants.buf_id, true, {
 		relative = "editor",
-		row = row,
+		row = main_row,
 		col = col,
 		width = width,
 		height = height,
 		style = "minimal",
-		border = config.options.window.border,
+		border = main_border,
 		zindex = config.options.window.zindex,
 		title = state.get_window_title(),
 		title_pos = "center",
@@ -153,13 +280,11 @@ function M.create_window()
 		footer_pos = "center",
 	})
 
-	-- Create small keys window with main window position
-	local small_win = create_small_keys_window({
-		row = row,
-		col = col,
-		width = width,
-		height = height,
-	})
+	-- Create quick keys window if enabled
+	local small_win = nil
+	if quick_row then
+		small_win = create_small_keys_window(quick_row, col, width, quick_border)
+	end
 
 	-- Close small window when main window is closed
 	if small_win then
