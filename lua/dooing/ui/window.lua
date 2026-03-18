@@ -114,24 +114,25 @@ local function create_small_keys_window(row, col, width, border)
 	local small_buf = vim.api.nvim_create_buf(false, true)
 
 	-- Define two separate line arrays for each column
+	local fmt = " %10s - %s"
 	local lines_1 = {
 		"",
-		string.format("  %-6s - New todo", keys.new_todo),
-		string.format("  %-6s - Nested todo", keys.create_nested_task),
-		string.format("  %-6s - Toggle todo", keys.toggle_todo),
-		string.format("  %-6s - Delete todo", keys.delete_todo),
-		string.format("  %-6s - Undo delete", keys.undo_delete),
-		string.format("  %-6s - Add due date", keys.add_due_date),
+		string.format(fmt, keys.new_todo, "New todo"),
+		string.format(fmt, keys.create_nested_task, "Nested todo"),
+		string.format(fmt, keys.toggle_todo, "Toggle todo"),
+		string.format(fmt, keys.delete_todo, "Delete todo"),
+		string.format(fmt, keys.undo_delete, "Undo delete"),
+		string.format(fmt, keys.add_due_date, "Add due date"),
 		"",
 	}
 
 	local lines_2 = {
 		"",
-		string.format("  %-6s - Add time", keys.add_time_estimation),
-		string.format("  %-6s - Tags", keys.toggle_tags),
-		string.format("  %-6s - Search", keys.search_todos),
-		string.format("  %-6s - Import", keys.import_todos),
-		string.format("  %-6s - Export", keys.export_todos),
+		string.format(fmt, keys.add_time_estimation, "Add time"),
+		string.format(fmt, keys.toggle_tags, "Tags"),
+		string.format(fmt, keys.search_todos, "Search"),
+		string.format(fmt, keys.import_todos, "Import"),
+		string.format(fmt, keys.export_todos, "Export"),
 		"",
 	}
 
