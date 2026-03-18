@@ -39,7 +39,7 @@ FEATURES                                                      *dooing-features*
 
 REQUIREMENTS                                              *dooing-requirements*
 
-- Neovim >= 0.9.0
+- Neovim >= 0.10.0
 - A patched font for icons (recommended)
 - Optional: nvim-web-devicons for file icons
 
