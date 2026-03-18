@@ -207,6 +207,7 @@ function Cal.create(callback, opts)
 		border = "single",
 		title = string.format(" %s %d ", Cal.MONTH_NAMES[language][cal.month], cal.year),
 		title_pos = "center",
+		zindex = config.options.window.zindex + 4,
 	})
 
 	--- Gets the cursor position for a given day

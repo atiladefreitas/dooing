@@ -67,7 +67,7 @@ local function create_small_keys_window(main_win_pos)
 		style = "minimal",
 		border = config.options.window.border,
 		focusable = false,
-		zindex = 45,
+		zindex = config.options.window.zindex,
 		footer = " Quick Keys ",
 		footer_pos = "center",
 	})
@@ -146,6 +146,7 @@ function M.create_window()
 		height = height,
 		style = "minimal",
 		border = config.options.window.border,
+		zindex = config.options.window.zindex,
 		title = state.get_window_title(),
 		title_pos = "center",
 		footer = " [?] for help ",

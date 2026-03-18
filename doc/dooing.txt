@@ -65,8 +65,16 @@ The plugin can be configured by passing a table to the setup function:
             width = 55,                -- Width of the todo window
             height = 20,               -- Height of the todo window
             border = "rounded",        -- Border style
+            zindex = 50,               -- Base z-index for floating windows
+                                       -- Dooing uses zindex to zindex+5 for layering:
+                                       -- +0: main window, quick keys
+                                       -- +1: scratchpad
+                                       -- +2: due notification
+                                       -- +3: help, tags, search
+                                       -- +4: calendar, priority picker
+                                       -- +5: delete confirmation
             position = "right",        -- Window position: "right", "left", "top", "bottom", "center",
-                                      -- "top-right", "top-left", "bottom-right", "bottom-left"
+                                       -- "top-right", "top-left", "bottom-right", "bottom-left"
             padding = {
                 top = 1,
                 bottom = 1,

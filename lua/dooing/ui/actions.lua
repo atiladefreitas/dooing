@@ -33,7 +33,7 @@ function M.edit_todo()
 			end
 		end
 
-		vim.ui.input({ zindex = 300, prompt = "Edit to-do: ", default = state.todos[todo_index].text }, function(input)
+		vim.ui.input({ prompt = "Edit to-do: ", default = state.todos[todo_index].text }, function(input)
 			if input and input ~= "" then
 				state.todos[todo_index].text = input
 				state.save_todos()
@@ -117,6 +117,7 @@ function M.edit_priorities()
 				title_pos = "center",
 				footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_priority),
 				footer_pos = "center",
+				zindex = config.options.window.zindex + 4,
 			})
 
 			-- Set buffer content
@@ -240,6 +241,7 @@ function M.new_todo()
 					title_pos = "center",
 					footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_priority),
 					footer_pos = "center",
+					zindex = config.options.window.zindex + 4,
 				})
 
 				-- Set buffer content
@@ -439,6 +441,7 @@ function M.new_nested_todo()
 					title_pos = "center",
 					footer = string.format(" %s: toggle | <Enter>: confirm ", config.options.keymaps.toggle_priority),
 					footer_pos = "center",
+					zindex = config.options.window.zindex + 4,
 				})
 
 				-- Set buffer content
