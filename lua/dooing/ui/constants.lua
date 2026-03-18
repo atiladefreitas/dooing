@@ -19,4 +19,7 @@ M.tag_buf_id = nil
 M.search_win_id = nil
 M.search_buf_id = nil
 
+-- Window to restore focus to when closing dooing
+M.previous_win = nil
+
 return M 
