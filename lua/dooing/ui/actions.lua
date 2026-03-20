@@ -399,8 +399,11 @@ function M.new_nested_todo()
 	end
 	
 	vim.ui.input({ prompt = "New sub-task: " }, function(input)
+		if not input or input == "" then
+			return
+		end
 		input = input:gsub("\n", " ")
-		if input and input ~= "" then
+		if input ~= "" then
 			-- Check if priorities are configured
 			if config.options.priorities and #config.options.priorities > 0 then
 				local priorities = config.options.priorities
