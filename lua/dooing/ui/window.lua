@@ -189,6 +189,12 @@ end
 
 -- Creates and configures the main todo window
 function M.create_window()
+	-- Save the window the user was in before opening dooing
+	-- Only save if we're not already inside a dooing window (e.g. toggling global↔project)
+	if constants.win_id == nil or not vim.api.nvim_win_is_valid(constants.win_id) then
+		constants.previous_win = vim.api.nvim_get_current_win()
+	end
+
 	local ui = vim.api.nvim_list_uis()[1]
 	local width = config.options.window.width
 	local height = config.options.window.height
@@ -329,6 +335,12 @@ function M.close_window()
 		constants.win_id = nil
 		constants.buf_id = nil
 	end
+
+	-- Restore focus to the window the user was in before opening dooing
+	if constants.previous_win and vim.api.nvim_win_is_valid(constants.previous_win) then
+		vim.api.nvim_set_current_win(constants.previous_win)
+	end
+	constants.previous_win = nil
 end
 
 -- Update window title without recreating the window
