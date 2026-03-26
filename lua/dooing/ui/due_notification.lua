@@ -180,7 +180,7 @@ function M.show_due_notification()
 		title_pos = "center",
 		footer = " [q] close | [<CR>] jump to todo ",
 		footer_pos = "center",
-		zindex = 50,
+		zindex = config.options.window.zindex + 2,
 	})
 	
 	vim.api.nvim_win_set_option(due_win_id, "wrap", true)

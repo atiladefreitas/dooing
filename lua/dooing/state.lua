@@ -987,6 +987,7 @@ function M.delete_todo_with_confirmation(todo_index, win_id, calendar, callback)
 		title_pos = "center",
 		footer = " [Y]es - [N]o ",
 		footer_pos = "center",
+		zindex = config.options.window.zindex + 5,
 		noautocmd = true,
 	})
 

@@ -34,7 +34,7 @@ function M.create_help_window()
     border = config.options.window.border,
     title = " help ",
     title_pos = "center",
-    zindex = 100,
+    zindex = config.options.window.zindex + 3,
   })
 
   local keys = config.options.keymaps
@@ -143,6 +143,7 @@ function M.create_tag_window()
     border = config.options.window.border,
     title = " tags ",
     title_pos = "center",
+    zindex = config.options.window.zindex + 3,
   })
 
   local tags = state.get_all_tags()
@@ -328,6 +329,7 @@ function M.create_search_window()
     border = config.options.window.border,
     title = " Search Todos ",
     title_pos = "center",
+    zindex = config.options.window.zindex + 3,
   })
 
   -- Create search query pane
@@ -399,6 +401,7 @@ function M.open_todo_scratchpad()
     border = config.options.window.border,
     title = " Scratchpad ",
     title_pos = "center",
+    zindex = config.options.window.zindex + 1,
   })
 
   local initial_notes = todo.notes or ""
