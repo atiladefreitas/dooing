@@ -26,7 +26,18 @@ Dooing is a minimalist todo list manager for Neovim, designed with simplicity an
 ### Prerequisites
 
 - Neovim `>= 0.10.0`
-- [Lazy.nvim](https://github.com/folke/lazy.nvim) as your plugin manager
+
+### Using Neovim Native Package Manager (v0.12+)
+
+Neovim 0.12 ships with a built-in package manager exposed via `vim.pkg`. Add the following to your `init.lua`:
+
+```lua
+vim.pkg.add("atiladefreitas/dooing")
+
+require("dooing").setup({
+    -- your custom config here (optional)
+})
+```
 
 ### Using Lazy.nvim
 
