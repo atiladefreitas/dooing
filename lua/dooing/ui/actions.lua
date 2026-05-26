@@ -594,19 +594,16 @@ function M.delete_todo()
 				if todo.text:match("#" .. state.active_filter) then
 					visible_index = visible_index + 1
 					if visible_index == todo_index - 2 then
-						todo_index = 1
+						todo_index = i
 						break
 					end
 				end
 			end
-		else
-			state.delete_todo_with_confirmation(todo_index, constants.win_id, calendar, function()
-				local rendering = require("dooing.ui.rendering")
-				rendering.render_todos()
-			end)
 		end
-		local rendering = require("dooing.ui.rendering")
-		rendering.render_todos()
+		state.delete_todo_with_confirmation(todo_index, constants.win_id, calendar, function()
+			local rendering = require("dooing.ui.rendering")
+			rendering.render_todos()
+		end)
 	end
 end
 
