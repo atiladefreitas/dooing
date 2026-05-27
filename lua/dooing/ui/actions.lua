@@ -9,30 +9,33 @@ local config = require("dooing.config")
 local calendar = require("dooing.ui.calendar")
 local server = require("dooing.server")
 
+local find_todo_index = function (def_index)
+	if state.active_filter then
+		local visible_index = 0
+		for i, todo in ipairs(state.todos) do
+			if todo.text:match("#" .. state.active_filter) then
+				visible_index = visible_index + 1
+				if visible_index == def_index - 2 then
+					return i
+				end
+			end
+		end
+	end
+	return def_index
+end
+
 -- Handles editing of existing todos
 function M.edit_todo()
 	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local todo_index = cursor[1] - 1
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, todo_index, todo_index + 1, false)[1]
+	local line = cursor[1] - 1
+	local todo_index = find_todo_index(line)
+	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
 
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
 	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
-		if state.active_filter then
-			local visible_index = 0
-			for i, todo in ipairs(state.todos) do
-				if todo.text:match("#" .. state.active_filter) then
-					visible_index = visible_index + 1
-					if visible_index == todo_index - 2 then
-						todo_index = i
-						break
-					end
-				end
-			end
-		end
-
 		vim.ui.input({ prompt = "Edit to-do: ", default = state.todos[todo_index].text }, function(input)
 			if input and input ~= "" then
 				state.todos[todo_index].text = input
@@ -47,26 +50,14 @@ end
 -- Handles editing priorities
 function M.edit_priorities()
 	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local todo_index = cursor[1] - 1
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, todo_index, todo_index + 1, false)[1]
+	local line = cursor[1] - 1
+	local todo_index = find_todo_index(line)
+	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
 	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
-		if state.active_filter then
-			local visible_index = 0
-			for i, todo in ipairs(state.todos) do
-				if todo.text:match("#" .. state.active_filter) then
-					visible_index = visible_index + 1
-					if visible_index == todo_index - 2 then
-						todo_index = i
-						break
-					end
-				end
-			end
-		end
-
 		-- Check if priorities are configured
 		if config.options.priorities and #config.options.priorities > 0 then
 			local priorities = config.options.priorities
@@ -373,8 +364,9 @@ function M.new_nested_todo()
 	end
 	
 	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local todo_index = cursor[1] - 1
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, todo_index, todo_index + 1, false)[1]
+	local line = cursor[1] - 1
+	local todo_index = find_todo_index(line)
+	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
 	
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
@@ -384,20 +376,6 @@ function M.new_nested_todo()
 	if not line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
 		vim.notify("Cursor must be on a todo item to create nested task", vim.log.levels.WARN)
 		return
-	end
-	
-	-- Adjust index for filtered view
-	if state.active_filter then
-		local visible_index = 0
-		for i, todo in ipairs(state.todos) do
-			if todo.text:match("#" .. state.active_filter) then
-				visible_index = visible_index + 1
-				if visible_index == todo_index - 2 then
-					todo_index = i
-					break
-				end
-			end
-		end
 	end
 	
 	vim.ui.input({ prompt = "New sub-task: " }, function(input)
@@ -552,27 +530,16 @@ end
 -- Toggles the completion status of the current todo
 function M.toggle_todo()
 	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local todo_index = cursor[1] - 1
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, todo_index, todo_index + 1, false)[1]
+	local line = cursor[1] - 1
+	local todo_index = find_todo_index(line)
+	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
 	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
-		if state.active_filter then
-			local visible_index = 0
-			for i, todo in ipairs(state.todos) do
-				if todo.text:match("#" .. state.active_filter) then
-					visible_index = visible_index + 1
-					if visible_index == todo_index - 2 then -- -2 for filter header
-						state.toggle_todo(i)
-						break
-					end
-				end
-			end
-		else
-			state.toggle_todo(todo_index)
-		end
+		state.toggle_todo(todo_index)
+
 		local rendering = require("dooing.ui.rendering")
 		rendering.render_todos()
 	end
@@ -581,32 +548,18 @@ end
 -- Deletes the current todo item
 function M.delete_todo()
 	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local todo_index = cursor[1] - 1
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, todo_index, todo_index + 1, false)[1]
+	local line = cursor[1] - 1
+	local todo_index = find_todo_index(line)
+	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
 	local done_icon = config.options.formatting.done.icon
 	local pending_icon = config.options.formatting.pending.icon
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
 	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
-		if state.active_filter then
-			local visible_index = 0
-			for i, todo in ipairs(state.todos) do
-				if todo.text:match("#" .. state.active_filter) then
-					visible_index = visible_index + 1
-					if visible_index == todo_index - 2 then
-						todo_index = 1
-						break
-					end
-				end
-			end
-		else
-			state.delete_todo_with_confirmation(todo_index, constants.win_id, calendar, function()
-				local rendering = require("dooing.ui.rendering")
-				rendering.render_todos()
-			end)
-		end
-		local rendering = require("dooing.ui.rendering")
-		rendering.render_todos()
+		state.delete_todo_with_confirmation(todo_index, constants.win_id, calendar, function()
+			local rendering = require("dooing.ui.rendering")
+			rendering.render_todos()
+		end)
 	end
 end
 
