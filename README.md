@@ -73,8 +73,12 @@ Dooing comes with sensible defaults that you can override:
 
     -- Window settings
     window = {
-        width = 55,         -- Width of the floating window
-        height = 20,        -- Height of the floating window
+        -- Size of the floating window; may also be a function returning a
+        -- table with these keys (see "Adaptive Window Size" below)
+        dimensions = {
+            width = 55,     -- Width of the floating window
+            height = 20,    -- Height of the floating window
+        },
         border = 'rounded', -- Border style: 'single', 'double', 'rounded', 'solid'
         zindex = 50,        -- Base z-index for floating windows (uses zindex to zindex+5)
         position = 'center', -- Window position: 'right', 'left', 'top', 'bottom', 'center',
@@ -218,6 +222,34 @@ Dooing comes with sensible defaults that you can override:
     done_sort_by_completed_time = false,
 }
 ```
+
+### Adaptive Window Size
+
+`window.dimensions` accepts either a table or a **function** returning one. The
+function is evaluated every time the todo window is opened, so the window can
+adapt to the current editor size:
+
+```lua
+require("dooing").setup({
+    window = {
+        dimensions = function()
+            return {
+                width = math.max(40, math.floor(vim.o.columns * 0.4)),
+                height = math.max(10, math.floor(vim.o.lines * 0.6)),
+            }
+        end,
+    },
+})
+```
+
+Values are floored and clamped to the space available in the editor. If the
+function raises an error or returns something unusable, Dooing falls back to
+`{ width = 55, height = 20 }`.
+
+> [!NOTE]
+> The former `window.width` / `window.height` options are deprecated but still
+> honoured: they are folded into `window.dimensions` (with a warning), so
+> existing configurations keep working.
 
 ## 📂 Per-Project Todos
 

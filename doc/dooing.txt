@@ -8,6 +8,7 @@ Table of Contents                                          *dooing-contents*
   - Requirements                                          |dooing-requirements|
   - Installation                                          |dooing-installation|
   - Configuration                                        |dooing-configuration|
+  - Adaptive Window Size                                |dooing-adaptive-size|
   - Usage                                                        |dooing-usage|
   - Commands                                                  |dooing-commands|
   - Keybindings                                            |dooing-keybindings|
@@ -62,8 +63,10 @@ The plugin can be configured by passing a table to the setup function:
 >
     require('dooing').setup({
         window = {
-            width = 55,                -- Width of the todo window
-            height = 20,               -- Height of the todo window
+            dimensions = {             -- Size of the todo window; may also be
+                width = 55,            -- a function returning a table with
+                height = 20,           -- these keys, see
+            },                         -- |dooing-adaptive-size|
             border = "rounded",        -- Border style
             zindex = 50,               -- Base z-index for floating windows
                                        -- Dooing uses zindex to zindex+5 for layering:
@@ -111,6 +114,31 @@ The plugin can be configured by passing a table to the setup function:
         },
     })
 <
+
+ADAPTIVE WINDOW SIZE                                    *dooing-adaptive-size*
+
+`window.dimensions` accepts either a table or a function returning one. The
+function is evaluated every time the todo window is opened, so the size can
+adapt to the current editor dimensions:
+>
+    require("dooing").setup({
+        window = {
+            dimensions = function()
+                return {
+                    width = math.max(40, math.floor(vim.o.columns * 0.4)),
+                    height = math.max(10, math.floor(vim.o.lines * 0.6)),
+                }
+            end,
+        },
+    })
+<
+Values are floored and clamped to the space available in the editor. If the
+function raises an error or returns something unusable, Dooing falls back to
+`{ width = 55, height = 20 }`.
+
+The former `window.width` and `window.height` options are deprecated but still
+honoured: they are folded into `window.dimensions` (with a warning) so that
+existing configurations keep working.
 
 
 USAGE                                                          *dooing-usage*

@@ -196,8 +196,9 @@ function M.create_window()
 	end
 
 	local ui = vim.api.nvim_list_uis()[1]
-	local width = config.options.window.width
-	local height = config.options.window.height
+	local dimensions = config.get_window_dimensions()
+	local width = dimensions.width
+	local height = dimensions.height
 	local main_border_height = 2 -- top + bottom border
 	local position = config.options.window.position or "right"
 

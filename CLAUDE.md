@@ -76,6 +76,8 @@ Todos are stored as a **flat JSON array** in a single file (default: `vim.fn.std
 - All runtime access goes through `config.options.*`
 - Keymaps can be disabled by setting them to `false` (checked in `init.lua` before `vim.keymap.set`)
 - When adding a new config option: add default to `M.defaults`, access via `config.options.your_option`
+- **Window size (`window.dimensions`):** may be a table `{ width = <n>, height = <n> }` **or** a function returning such a table (evaluated on every window creation, so sizes can adapt to `vim.o.columns` / `vim.o.lines`). Never read `config.options.window.dimensions` directly — call `config.get_window_dimensions()`, which resolves the function form, accepts positional `{ <w>, <h> }` tables, floors/clamps to the editor size, and falls back to `{ width = 55, height = 20 }` on invalid values
+- The legacy `window.width` / `window.height` options are deprecated: `M.setup()` folds user-supplied values into `window.dimensions` (with a `vim.notify` warning) and removes the legacy keys from `config.options.window`
 
 ## Code Conventions
 
@@ -116,6 +118,7 @@ Todos are stored as a **flat JSON array** in a single file (default: `vim.fn.std
 
 - **Duplicate function definitions in `state.lua`:** `delete_todo()` and `delete_completed()` are defined twice — the second definitions (near the bottom) override the first to add undo support. This is intentional.
 - **`---@diagnostic disable` lines** at the top of UI files suppress known warnings — don't remove them.
+- **`window.width` / `window.height` no longer exist at runtime** — they are migrated into `window.dimensions` during `config.setup()`. Any new code needing the window size must use `config.get_window_dimensions()` (consumers: `ui/window.lua`, `ui/rendering.lua`, `ui/due_notification.lua`).
 - **Git root detection** uses `io.popen("git rev-parse --show-toplevel")` — synchronous/blocking. Keep this in mind for performance.
 - **No automated tests** — verify changes manually with various configurations, empty/full todo lists, and nested task scenarios. Check `:messages` for Lua errors.
 - **`server.lua`** is a standalone QR-code share feature using raw TCP (`vim.loop`). It's isolated and rarely needs changes.
