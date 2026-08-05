@@ -3,8 +3,17 @@ local M = {}
 
 M.defaults = {
 	window = {
-		width = 55,
-		height = 20,
+		-- Size of the todo window: either a table `{ width = <n>, height = <n> }`
+		-- or a function returning such a table. The function form is evaluated every
+		-- time the window is opened, which allows sizes that adapt to the current
+		-- editor dimensions, e.g.
+		--   dimensions = function()
+		--     return { width = math.floor(vim.o.columns * 0.4), height = math.floor(vim.o.lines * 0.6) }
+		--   end
+		dimensions = {
+			width = 55,
+			height = 20,
+		},
 		border = "rounded",
 		zindex = 50,
 		position = "center",
@@ -137,8 +146,100 @@ M.defaults = {
 
 M.options = {}
 
+-- Used when `window.dimensions` cannot be resolved to usable values
+local FALLBACK_DIMENSIONS = { width = 55, height = 20 }
+
+-- Extracts width/height from a dimensions table, accepting both the named form
+-- `{ width = 55, height = 20 }` and the positional form `{ 55, 20 }`
+local function unpack_dimensions(value)
+	if type(value) ~= "table" then
+		return nil
+	end
+	local width = value.width or value[1]
+	local height = value.height or value[2]
+	if type(width) ~= "number" or type(height) ~= "number" then
+		return nil
+	end
+	return { width = width, height = height }
+end
+
+-- Folds the deprecated `window.width` / `window.height` options into
+-- `window.dimensions` so that existing user configurations keep working
+local function migrate_legacy_dimensions(opts)
+	local user_window = opts and opts.window
+	if type(user_window) ~= "table" then
+		return
+	end
+	if user_window.width == nil and user_window.height == nil then
+		return
+	end
+
+	-- An explicit `dimensions` always wins over the legacy keys
+	if user_window.dimensions == nil then
+		local defaults = M.defaults.window.dimensions
+		M.options.window.dimensions = {
+			width = user_window.width or defaults.width,
+			height = user_window.height or defaults.height,
+		}
+	end
+
+	-- Drop the legacy keys to keep a single source of truth
+	M.options.window.width = nil
+	M.options.window.height = nil
+
+	vim.notify(
+		"dooing: `window.width` / `window.height` are deprecated, use "
+			.. "`window.dimensions = { width = <n>, height = <n> }` instead "
+			.. "(a function returning such a table is also supported)",
+		vim.log.levels.WARN
+	)
+end
+
+---Resolves `window.dimensions` into concrete cell counts.
+---
+---`window.dimensions` may be either
+---  * a table:    `{ width = 55, height = 20 }`, or
+---  * a function: `function() return { width = ..., height = ... } end`
+---
+---The function form is evaluated on every call, so the returned size may depend
+---on the current editor dimensions (`vim.o.columns` / `vim.o.lines`).
+---@return { width: integer, height: integer }
+function M.get_window_dimensions()
+	local value = (M.options.window or {}).dimensions
+
+	if type(value) == "function" then
+		local ok, result = pcall(value)
+		if not ok then
+			vim.notify("dooing: `window.dimensions` function failed: " .. tostring(result), vim.log.levels.ERROR)
+			result = nil
+		end
+		value = result
+	end
+
+	local dimensions = unpack_dimensions(value)
+	if not dimensions then
+		if value ~= nil then
+			vim.notify(
+				"dooing: `window.dimensions` must be (or return) a table "
+					.. "`{ width = <n>, height = <n> }`; falling back to defaults",
+				vim.log.levels.WARN
+			)
+		end
+		dimensions = FALLBACK_DIMENSIONS
+	end
+
+	-- Clamp to the space actually available, keeping at least one cell
+	local max_width = math.max(vim.o.columns, 1)
+	local max_height = math.max(vim.o.lines - 4, 1) -- room for borders, statusline and cmdline
+	return {
+		width = math.min(math.max(math.floor(dimensions.width), 1), max_width),
+		height = math.min(math.max(math.floor(dimensions.height), 1), max_height),
+	}
+end
+
 function M.setup(opts)
 	M.options = vim.tbl_deep_extend("force", M.defaults, opts or {})
+	migrate_legacy_dimensions(opts)
 end
 
 return M

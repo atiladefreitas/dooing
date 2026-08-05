@@ -84,7 +84,8 @@ function M.show_due_notification()
 	-- Get formatting config
 	local formatting = config.options.formatting
 	local lang = calendar.get_language()
-	local window_width = config.options.window.width
+	local dimensions = config.get_window_dimensions()
+	local window_width = dimensions.width
 	local notes_icon = config.options.notes.icon
 	
 	-- Render each due todo
@@ -116,7 +117,7 @@ function M.show_due_notification()
 	
 	-- Calculate window dimensions
 	local ui = vim.api.nvim_list_uis()[1]
-	local width = config.options.window.width
+	local width = dimensions.width
 	local height = math.min(#lines + 2, math.floor(ui.height * 0.6))
 	local position = config.options.window.position or "center"
 	local padding = 2

@@ -138,7 +138,7 @@ function M.render_todos()
 	local in_progress_icon = config.options.formatting.in_progress.icon
 
 	-- Get window width for timestamp positioning
-	local window_width = config.options.window.width
+	local window_width = config.get_window_dimensions().width
 	
 	-- Loop through all todos and render them using the format
 	for _, todo in ipairs(state.todos) do
