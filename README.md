@@ -132,6 +132,7 @@ Dooing comes with sensible defaults that you can override:
         indent = 2,                           -- Spaces per nesting level
         retain_structure_on_complete = true,   -- Keep nested structure when completing tasks
         move_completed_to_end = true,         -- Move completed nested tasks to end of parent group
+        inherit_priority = false,             -- Inherit parent priorities and skip the priority prompt
     },
 
     -- Due date notifications

@@ -79,6 +79,7 @@ M.defaults = {
 		indent = 2,
 		retain_structure_on_complete = true,
 		move_completed_to_end = true,
+		inherit_priority = false,
 	},
 	due_notifications = {
 		enabled = true,

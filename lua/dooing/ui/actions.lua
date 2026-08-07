@@ -378,12 +378,38 @@ function M.new_nested_todo()
 		return
 	end
 	
+	-- Creates the nested todo and refreshes the UI
+	local function create_nested_todo(input, priorities_to_add)
+		local success = state.add_nested_todo(input, todo_index, priorities_to_add)
+
+		if success then
+			local rendering = require("dooing.ui.rendering")
+			rendering.render_todos()
+			vim.notify("Nested task created", vim.log.levels.INFO)
+
+			-- Focus back to main window
+			if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+				vim.api.nvim_set_current_win(constants.win_id)
+			end
+		else
+			vim.notify("Failed to create nested task", vim.log.levels.ERROR)
+		end
+	end
+
 	vim.ui.input({ prompt = "New sub-task: " }, function(input)
 		if not input or input == "" then
 			return
 		end
 		input = input:gsub("\n", " ")
 		if input ~= "" then
+			-- Inherit the parent priorities and skip the priority selection
+			if config.options.nested_tasks.inherit_priority then
+				local parent_todo = state.todos[todo_index]
+				local inherited_priorities = parent_todo and parent_todo.priorities
+				create_nested_todo(input, inherited_priorities and vim.deepcopy(inherited_priorities) or nil)
+				return
+			end
+
 			-- Check if priorities are configured
 			if config.options.priorities and #config.options.priorities > 0 then
 				local priorities = config.options.priorities
@@ -473,20 +499,7 @@ function M.new_nested_todo()
 
 					-- Add nested todo with priority names
 					local priorities_to_add = #selected_priority_names > 0 and selected_priority_names or nil
-					local success = state.add_nested_todo(input, todo_index, priorities_to_add)
-					
-					if success then
-						local rendering = require("dooing.ui.rendering")
-						rendering.render_todos()
-						vim.notify("Nested task created", vim.log.levels.INFO)
-						
-						-- Focus back to main window
-						if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
-							vim.api.nvim_set_current_win(constants.win_id)
-						end
-					else
-						vim.notify("Failed to create nested task", vim.log.levels.ERROR)
-					end
+					create_nested_todo(input, priorities_to_add)
 				end, { buffer = select_buf, nowait = true })
 
 				-- Add escape/quit keymaps
@@ -508,20 +521,7 @@ function M.new_nested_todo()
 				})
 			else
 				-- If prioritization is disabled, just add the nested todo without priority
-				local success = state.add_nested_todo(input, todo_index, nil)
-				
-				if success then
-					local rendering = require("dooing.ui.rendering")
-					rendering.render_todos()
-					vim.notify("Nested task created", vim.log.levels.INFO)
-					
-					-- Focus back to main window
-					if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
-						vim.api.nvim_set_current_win(constants.win_id)
-					end
-				else
-					vim.notify("Failed to create nested task", vim.log.levels.ERROR)
-				end
+				create_nested_todo(input, nil)
 			end
 		end
 	end)
