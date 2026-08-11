@@ -9,34 +9,23 @@ local config = require("dooing.config")
 local calendar = require("dooing.ui.calendar")
 local server = require("dooing.server")
 
-local find_todo_index = function (def_index)
-	if state.active_filter then
-		local visible_index = 0
-		for i, todo in ipairs(state.todos) do
-			if todo.text:match("#" .. state.active_filter) then
-				visible_index = visible_index + 1
-				if visible_index == def_index - 2 then
-					return i
-				end
-			end
-		end
-	end
-	return def_index
+-- Resolves the todo under the cursor. The renderer owns the line -> todo
+-- mapping, so this works for any layout, including ones with section headers
+-- and other non-todo lines.
+local find_todo_index = function()
+	return utils.todo_index_at_cursor()
 end
 
 -- Handles editing of existing todos
 function M.edit_todo()
-	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local line = cursor[1] - 1
-	local todo_index = find_todo_index(line)
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
+	local todo_index = find_todo_index()
 
-	local done_icon = config.options.formatting.done.icon
-	local pending_icon = config.options.formatting.pending.icon
-	local in_progress_icon = config.options.formatting.in_progress.icon
-
-	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
-		vim.ui.input({ prompt = "Edit to-do: ", default = state.todos[todo_index].text }, function(input)
+	if todo_index and state.todos[todo_index] then
+		require("dooing.ui.panels").prompt({
+			title = " Edit to-do ",
+			prompt = "Edit to-do: ",
+			default = state.todos[todo_index].text,
+		}, function(input)
 			if input and input ~= "" then
 				state.todos[todo_index].text = input
 				state.save_todos()
@@ -49,15 +38,9 @@ end
 
 -- Handles editing priorities
 function M.edit_priorities()
-	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local line = cursor[1] - 1
-	local todo_index = find_todo_index(line)
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
-	local done_icon = config.options.formatting.done.icon
-	local pending_icon = config.options.formatting.pending.icon
-	local in_progress_icon = config.options.formatting.in_progress.icon
+	local todo_index = find_todo_index()
 
-	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if todo_index and state.todos[todo_index] then
 		-- Check if priorities are configured
 		if config.options.priorities and #config.options.priorities > 0 then
 			local priorities = config.options.priorities
@@ -187,7 +170,11 @@ end
 
 -- Creates a new todo item
 function M.new_todo()
-	vim.ui.input({ prompt = "New to-do: " }, function(input)
+	require("dooing.ui.panels").prompt({
+		title = " New to-do ",
+		prompt = "New to-do: ",
+		footer = " <CR> confirm · <Esc> cancel · #tag to categorise ",
+	}, function(input)
 		if not input or input == "" then
 			return
 		end
@@ -363,17 +350,10 @@ function M.new_nested_todo()
 		return
 	end
 	
-	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local line = cursor[1] - 1
-	local todo_index = find_todo_index(line)
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
-	
-	local done_icon = config.options.formatting.done.icon
-	local pending_icon = config.options.formatting.pending.icon
-	local in_progress_icon = config.options.formatting.in_progress.icon
-	
+	local todo_index = find_todo_index()
+
 	-- Check if cursor is on a todo line
-	if not line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if not (todo_index and state.todos[todo_index]) then
 		vim.notify("Cursor must be on a todo item to create nested task", vim.log.levels.WARN)
 		return
 	end
@@ -396,7 +376,11 @@ function M.new_nested_todo()
 		end
 	end
 
-	vim.ui.input({ prompt = "New sub-task: " }, function(input)
+	require("dooing.ui.panels").prompt({
+		title = " New sub-task ",
+		prompt = "New sub-task: ",
+		footer = " <CR> confirm · <Esc> cancel ",
+	}, function(input)
 		if not input or input == "" then
 			return
 		end
@@ -529,15 +513,9 @@ end
 
 -- Toggles the completion status of the current todo
 function M.toggle_todo()
-	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local line = cursor[1] - 1
-	local todo_index = find_todo_index(line)
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
-	local done_icon = config.options.formatting.done.icon
-	local pending_icon = config.options.formatting.pending.icon
-	local in_progress_icon = config.options.formatting.in_progress.icon
+	local todo_index = find_todo_index()
 
-	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if todo_index and state.todos[todo_index] then
 		state.toggle_todo(todo_index)
 
 		local rendering = require("dooing.ui.rendering")
@@ -547,15 +525,9 @@ end
 
 -- Deletes the current todo item
 function M.delete_todo()
-	local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-	local line = cursor[1] - 1
-	local todo_index = find_todo_index(line)
-	local line_content = vim.api.nvim_buf_get_lines(constants.buf_id, line, line + 1, false)[1]
-	local done_icon = config.options.formatting.done.icon
-	local pending_icon = config.options.formatting.pending.icon
-	local in_progress_icon = config.options.formatting.in_progress.icon
+	local todo_index = find_todo_index()
 
-	if line_content:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
+	if todo_index and state.todos[todo_index] then
 		state.delete_todo_with_confirmation(todo_index, constants.win_id, calendar, function()
 			local rendering = require("dooing.ui.rendering")
 			rendering.render_todos()
@@ -580,8 +552,11 @@ end
 
 -- Add due date to to-do in the format MM/DD/YYYY
 function M.add_due_date()
-	local current_line = vim.api.nvim_win_get_cursor(0)[1]
-	local todo_index = current_line - (state.active_filter and 3 or 1)
+	local todo_index = find_todo_index()
+	if not (todo_index and state.todos[todo_index]) then
+		vim.notify("Cursor must be on a todo item to add a due date", vim.log.levels.WARN)
+		return
+	end
 
 	calendar.create(function(date_str)
 		if date_str and date_str ~= "" then
@@ -600,8 +575,11 @@ end
 
 -- Remove due date from to-do
 function M.remove_due_date()
-	local current_line = vim.api.nvim_win_get_cursor(0)[1]
-	local todo_index = current_line - (state.active_filter and 3 or 1)
+	local todo_index = find_todo_index()
+	if not (todo_index and state.todos[todo_index]) then
+		vim.notify("Cursor must be on a todo item to remove a due date", vim.log.levels.WARN)
+		return
+	end
 
 	local success = state.remove_due_date(todo_index)
 
@@ -616,16 +594,21 @@ end
 
 -- Add estimated completion time to todo
 function M.add_time_estimation()
-	local current_line = vim.api.nvim_win_get_cursor(0)[1]
-	local todo_index = current_line - (state.active_filter and 3 or 1)
+	local todo_index = find_todo_index()
+	if not (todo_index and state.todos[todo_index]) then
+		vim.notify("Cursor must be on a todo item to add a time estimation", vim.log.levels.WARN)
+		return
+	end
 
-	vim.ui.input({
+	require("dooing.ui.panels").prompt({
+		title = " Time estimation ",
 		prompt = "Estimated completion time (e.g., 15m, 2h, 1d, 0.5w): ",
 		default = "",
+		footer = " 15m · 2h · 1d · 0.5w ",
 	}, function(input)
 		if input and input ~= "" then
 			local hours, err = utils.parse_time_estimation(input)
-			if hours then
+			if hours and state.todos[todo_index] then
 				state.todos[todo_index].estimated_hours = hours
 				state.save_todos()
 				vim.notify("Time estimation added successfully", vim.log.levels.INFO)
@@ -640,10 +623,9 @@ end
 
 -- Remove estimated completion time from todo
 function M.remove_time_estimation()
-	local current_line = vim.api.nvim_win_get_cursor(0)[1]
-	local todo_index = current_line - (state.active_filter and 3 or 1)
+	local todo_index = find_todo_index()
 
-	if state.todos[todo_index] then
+	if todo_index and state.todos[todo_index] then
 		state.todos[todo_index].estimated_hours = nil
 		state.save_todos()
 		vim.notify("Time estimation removed successfully", vim.log.levels.INFO)

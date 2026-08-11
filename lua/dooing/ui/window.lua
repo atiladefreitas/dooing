@@ -11,10 +11,89 @@ local state = require("dooing.state")
 local QUICK_KEYS_CONTENT_LINES = 8
 local QUICK_KEYS_BORDER_HEIGHT = 2 -- top + bottom border
 
+-- The compact strip shown instead of the tall panel in the modern style
+local COMPACT_QUICK_KEYS = {
+	{ key = "new_todo", label = "new" },
+	{ key = "toggle_todo", label = "done" },
+	{ key = "delete_todo", label = "del" },
+	{ key = "search_todos", label = "find" },
+	{ key = "add_due_date", label = "due" },
+	{ key = "add_time_estimation", label = "est" },
+	{ key = "toggle_tags", label = "tags" },
+	{ key = "toggle_help", label = "help" },
+}
+
+-- Packs the compact quick keys into as few lines as fit the given width.
+-- Returns the line strings plus the highlight spans for each key/label pair.
+local function build_compact_quick_keys(width)
+	local keys = config.options.keymaps
+	local items = {}
+	for _, item in ipairs(COMPACT_QUICK_KEYS) do
+		local mapping = keys[item.key]
+		-- Skip disabled keymaps, and multi-key sequences that would crowd the strip
+		if mapping and mapping ~= false and #tostring(mapping) <= 2 then
+			table.insert(items, { key = tostring(mapping), label = item.label })
+		end
+	end
+
+	if #items == 0 then
+		return {}, {}
+	end
+
+	-- Lay `items` out over `row_count` rows, evenly split. Returns nil if any
+	-- row would overflow the available width.
+	local function layout(row_count)
+		local per_row = math.ceil(#items / row_count)
+		local lines, spans = {}, {}
+
+		for row = 1, row_count do
+			local text, row_spans = " ", {}
+			for i = (row - 1) * per_row + 1, math.min(row * per_row, #items) do
+				local item = items[i]
+				local chunk = item.key .. " " .. item.label
+				local key_start = #text
+				table.insert(row_spans, {
+					key_start = key_start,
+					key_end = key_start + #item.key,
+					label_start = key_start + #item.key + 1,
+					label_end = key_start + #chunk,
+				})
+				text = text .. chunk .. "  "
+			end
+
+			text = text:gsub("%s+$", "")
+			-- Leave a column clear of the right border
+			if #text > width - 1 then
+				return nil
+			end
+			if text ~= "" then
+				table.insert(lines, text)
+				table.insert(spans, row_spans)
+			end
+		end
+
+		return lines, spans
+	end
+
+	-- Use the fewest rows that fit, so the keys stay evenly balanced
+	for row_count = 1, #items do
+		local lines, spans = layout(row_count)
+		if lines then
+			return lines, spans
+		end
+	end
+
+	return {}, {}
+end
+
 -- Returns the total height of the quick keys panel (including border), or 0 if disabled
-local function get_quick_keys_height()
+local function get_quick_keys_height(width)
 	if not config.options.quick_keys then
 		return 0
+	end
+	if config.modern_feature("compact_quick_keys") then
+		local lines = build_compact_quick_keys(width)
+		return #lines + QUICK_KEYS_BORDER_HEIGHT
 	end
 	return QUICK_KEYS_CONTENT_LINES + QUICK_KEYS_BORDER_HEIGHT
 end
@@ -104,10 +183,56 @@ local function get_quick_border_fused(style, quick_panel_above)
 	end
 end
 
+-- Creates the compact single-strip quick keys panel used by the modern style
+function M.create_compact_keys_window(row, col, width, border)
+	local lines, spans = build_compact_quick_keys(width)
+	if #lines == 0 then
+		return nil
+	end
+
+	local small_buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_lines(small_buf, 0, -1, false, lines)
+	vim.api.nvim_buf_set_option(small_buf, "modifiable", false)
+	vim.api.nvim_buf_set_option(small_buf, "buftype", "nofile")
+
+	local small_win = vim.api.nvim_open_win(small_buf, false, {
+		relative = "editor",
+		row = row,
+		col = col,
+		width = width,
+		height = #lines,
+		style = "minimal",
+		border = border,
+		focusable = false,
+		zindex = config.options.window.zindex,
+	})
+
+	local ns = vim.api.nvim_create_namespace("dooing_small_keys")
+	for line_nr, line_spans in ipairs(spans) do
+		for _, span in ipairs(line_spans) do
+			vim.api.nvim_buf_add_highlight(small_buf, ns, "DooingQuickKey", line_nr - 1, span.key_start, span.key_end)
+			vim.api.nvim_buf_add_highlight(
+				small_buf,
+				ns,
+				"DooingQuickDesc",
+				line_nr - 1,
+				span.label_start,
+				span.label_end
+			)
+		end
+	end
+
+	return small_win
+end
+
 -- Creates and configures the small keys window at the specified position
 local function create_small_keys_window(row, col, width, border)
 	if not config.options.quick_keys then
 		return nil
+	end
+
+	if config.modern_feature("compact_quick_keys") then
+		return M.create_compact_keys_window(row, col, width, border)
 	end
 
 	local keys = config.options.keymaps
@@ -202,7 +327,7 @@ function M.create_window()
 	local main_border_height = 2 -- top + bottom border
 	local position = config.options.window.position or "right"
 
-	local quick_keys_height = get_quick_keys_height()
+	local quick_keys_height = get_quick_keys_height(width)
 	local is_top_position = vim.tbl_contains({ "top", "top-left", "top-right" }, position)
 	local is_bottom_position = vim.tbl_contains({ "bottom", "bottom-left", "bottom-right" }, position)
 	local has_quick_keys = quick_keys_height > 0
@@ -282,9 +407,9 @@ function M.create_window()
 		style = "minimal",
 		border = main_border,
 		zindex = config.options.window.zindex,
-		title = state.get_window_title(),
+		title = M.build_title(),
 		title_pos = "center",
-		footer = " [?] for help ",
+		footer = M.build_footer(),
 		footer_pos = "center",
 	})
 
@@ -312,8 +437,19 @@ function M.create_window()
 	vim.api.nvim_win_set_option(constants.win_id, "breakindentopt", "shift:2")
 	vim.api.nvim_win_set_option(constants.win_id, "showbreak", " ")
 	
-	-- Set up folding for nested tasks
-	vim.api.nvim_win_set_option(constants.win_id, "foldmethod", "indent")
+	-- Set up folding for nested tasks. The modern style puts every row at the
+	-- same character indent, so it folds on the todo's real depth instead;
+	-- that also makes folding independent of the user's 'shiftwidth'.
+	if config.is_modern() then
+		vim.api.nvim_win_set_option(constants.win_id, "foldmethod", "expr")
+		vim.api.nvim_win_set_option(
+			constants.win_id,
+			"foldexpr",
+			"v:lua.require'dooing.ui.modern'.foldexpr()"
+		)
+	else
+		vim.api.nvim_win_set_option(constants.win_id, "foldmethod", "indent")
+	end
 	vim.api.nvim_win_set_option(constants.win_id, "foldlevel", 99) -- Start with all folds open
 	vim.api.nvim_win_set_option(constants.win_id, "foldenable", true)
 end
@@ -325,10 +461,18 @@ end
 
 -- Closes all plugin windows
 function M.close_window()
-	if constants.help_win_id and vim.api.nvim_win_is_valid(constants.help_win_id) then
-		vim.api.nvim_win_close(constants.help_win_id, true)
-		constants.help_win_id = nil
-		constants.help_buf_id = nil
+	-- Close every sub-window, so none is left orphaned on screen
+	for _, ids in ipairs({
+		{ "help_win_id", "help_buf_id" },
+		{ "tag_win_id", "tag_buf_id" },
+		{ "search_win_id", "search_buf_id" },
+	}) do
+		local win_key, buf_key = ids[1], ids[2]
+		if constants[win_key] and vim.api.nvim_win_is_valid(constants[win_key]) then
+			vim.api.nvim_win_close(constants[win_key], true)
+		end
+		constants[win_key] = nil
+		constants[buf_key] = nil
 	end
 
 	if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
@@ -344,11 +488,54 @@ function M.close_window()
 	constants.previous_win = nil
 end
 
+-- Builds the window title. In the modern style the plain title is followed by a
+-- completion count and a small progress bar, as highlighted chunks.
+function M.build_title()
+	local title = state.get_window_title()
+	if not config.modern_feature("progress") then
+		return title
+	end
+
+	local modern = require("dooing.ui.modern")
+	local stats = modern.stats(state.todos, state.active_filter)
+	if stats.total == 0 then
+		return title
+	end
+
+	local chunks = { { title, "DooingSectionTitle" } }
+	vim.list_extend(chunks, modern.progress_chunks(stats, 8))
+	return chunks
+end
+
+-- Builds the footer, adding an overdue summary in the modern style
+function M.build_footer()
+	if not config.modern_feature("progress") then
+		return " [?] for help "
+	end
+
+	local help_key = config.options.keymaps.toggle_help
+	local base = help_key and string.format(" [%s] for help ", help_key) or " "
+
+	local modern = require("dooing.ui.modern")
+	local stats = modern.stats(state.todos, state.active_filter)
+	if stats.overdue > 0 then
+		return {
+			{ base, "DooingQuickDesc" },
+			{ string.format("· %d overdue ", stats.overdue), "DooingOverdue" },
+		}
+	end
+
+	return { { base, "DooingQuickDesc" } }
+end
+
 -- Update window title without recreating the window
 function M.update_window_title()
 	if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
 		vim.api.nvim_win_set_config(constants.win_id, {
-			title = state.get_window_title(),
+			title = M.build_title(),
+			title_pos = "center",
+			footer = M.build_footer(),
+			footer_pos = "center",
 		})
 	end
 end

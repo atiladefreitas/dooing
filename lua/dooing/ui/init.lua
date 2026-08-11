@@ -31,13 +31,15 @@ function M.toggle_todo_window()
 	else
 		window.create_window()
 		keymaps.setup_keymaps()
-		M.render_todos()
+		-- Opening a list: start on the first todo rather than the blank first line
+		M.render_todos({ focus_first = true })
 	end
 end
 
 -- Main function for todos rendering
-function M.render_todos()
-	rendering.render_todos()
+---@param opts table|nil { focus_first = boolean } park the cursor on the first todo
+function M.render_todos(opts)
+	rendering.render_todos(opts)
 end
 
 -- Closes all plugin windows

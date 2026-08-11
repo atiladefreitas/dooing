@@ -8,6 +8,7 @@ Table of Contents                                          *dooing-contents*
   - Requirements                                          |dooing-requirements|
   - Installation                                          |dooing-installation|
   - Configuration                                        |dooing-configuration|
+  - Modern UI                                              |dooing-modern-ui|
   - Adaptive Window Size                                |dooing-adaptive-size|
   - Usage                                                        |dooing-usage|
   - Commands                                                  |dooing-commands|
@@ -62,6 +63,15 @@ CONFIGURATION                                            *dooing-configuration*
 The plugin can be configured by passing a table to the setup function:
 >
     require('dooing').setup({
+        ui = {                             -- See |dooing-modern-ui|
+            style = "classic",             -- "classic" | "modern"
+            sections = true,               -- status headings with counts
+            priority_bar = true,           -- colored marker per row
+            tree_connectors = true,        -- tree guides for nested tasks
+            note_preview = true,           -- first notes line beneath the todo
+            progress = true,               -- progress bar in the title
+            compact_quick_keys = true,     -- single-strip quick keys
+        },
         window = {
             dimensions = {             -- Size of the todo window; may also be
                 width = 55,            -- a function returning a table with
@@ -114,6 +124,92 @@ The plugin can be configured by passing a table to the setup function:
         },
     })
 <
+
+MODERN UI                                                  *dooing-modern-ui*
+
+Dooing ships a redesigned interface behind `ui.style = "modern"`. It is
+opt-in: the default "classic" style renders exactly as it always has, so
+updating the plugin never changes your interface.
+>
+    require('dooing').setup({
+        ui = { style = "modern" },
+    })
+<
+The modern style changes the following:
+
+- Status sections. Top-level todos are grouped under IN PROGRESS, PENDING and
+  DONE, each with a count. Subtasks always stay under their parent, so a
+  nested tree is never split across sections.
+- Priority as a marker. Only the marker and the status icon carry the
+  priority color, instead of tinting the whole row.
+- Right-aligned dimmed metadata. Estimate, due date and age sit on the right
+  of the row, or move to their own dimmed line when the row would be
+  squeezed.
+- Tree connectors for nested tasks.
+- Note previews. A todo's description is stored in its notes, edited in the
+  scratchpad (`open_todo_scratchpad`, `<leader>p` by default). The first line
+  is shown beneath the todo, dimmed and aligned with the text, truncated with
+  an ellipsis when it does not fit. Every line a todo occupies resolves back
+  to that todo, so keys work from the note line too. Set
+  `ui.note_preview = false` to show only the notes indicator icon.
+- Sharper due dates: "overdue 3d" in red, distinct accents for "due today",
+  "due tomorrow" and "in 5d", plain dates further out.
+- Progress bar in the window title and an overdue count in the footer.
+- A width-adaptive quick keys strip instead of the fixed 8-line panel.
+- Folding by the todo's real nesting depth, so `zc` on a parent collapses
+  exactly its own subtree. The classic style folds on character indent, which
+  has no effect unless 'shiftwidth' happens to be small.
+
+Sub-windows~
+
+Every secondary window is centered on the editor and sized from its own
+content, rather than positioned against a hard-coded guess at the main
+window's width:
+
+- Prompts (new to-do, sub-task, edit, time estimation, tag rename, search)
+  open a centered input box in insert mode instead of using the cmdline.
+  Import and export keep using |vim.ui.input()| because they rely on
+  filename completion.
+- The help window is grouped by what the keys do, aligns the key column
+  across all groups, and omits any keymap set to `false`.
+- The tags window shows how many todos carry each tag.
+- Search prompts in the centered input, highlights the matched text in the
+  results, and reports the result count in the footer. Pressing <CR> jumps
+  to the todo, first clearing an active tag filter if it would hide it.
+- The calendar is centered with its navigation keys shown in the footer, and
+  uses a roomier grid than the classic one (32x10 rather than 26x9): wider
+  day cells, with the weekday names separated from the days by a blank line.
+
+Each of these has its own toggle under `ui`, so they can be mixed and
+matched. Every toggle additionally requires `ui.style = "modern"`, so the
+classic layout is never affected:
+>
+    require('dooing').setup({
+        ui = { style = "modern", tree_connectors = false },
+    })
+<
+Section titles and icons can be customised:
+>
+    require('dooing').setup({
+        ui = {
+            style = "modern",
+            section_titles = {
+                in_progress = "DOING",
+                pending = "TODO",
+                done = "DONE",
+            },
+            icons = {
+                priority_bar = "▎",
+                overdue = "󰀦",
+                progress_on = "▰",
+                progress_off = "▱",
+            },
+        },
+    })
+<
+All colors are highlight groups with default links, so a colorscheme or your
+own configuration can override any of them. See |dooing-colors|.
+
 
 ADAPTIVE WINDOW SIZE                                    *dooing-adaptive-size*
 
@@ -279,12 +375,32 @@ Import and export todos using JSON format: >vim
 ==============================================================================
 3. Colors                                                      *dooing-colors*
 
+All groups are defined as `default` links, so a colorscheme or your own
+`nvim_set_hl()` call always takes precedence:
+>
+    vim.api.nvim_set_hl(0, "DooingSectionTitle", { fg = "#89b4fa", bold = true })
+<
 Highlight Groups~
-`DooingPending`       Pending todo items
-`DooingDone`          Completed todo items
-`DooingHelpText`      Help window text
-`DooingQuickTitle`    Quick keys title
-`DooingQuickKey`      Quick keys keybindings
-`DooingQuickDesc`     Quick keys descriptions
+`DooingPending`       Pending todo items          (link: Question)
+`DooingDone`          Completed todo items        (link: Comment)
+`DooingHelpText`      Help window text            (link: Directory)
+`DooingTimestamp`     Relative timestamps         (link: Comment)
+`DooingQuickTitle`    Quick keys title            (link: Title)
+`DooingQuickKey`      Quick keys keybindings      (link: Identifier)
+`DooingQuickDesc`     Quick keys descriptions     (link: Comment)
+
+Used by the modern style, see |dooing-modern-ui|:
+`DooingText`          Todo text                   (link: Normal)
+`DooingMeta`          Estimates, ages, dates      (link: Comment)
+`DooingTag`           #tags                       (link: Type)
+`DooingSectionTitle`  Section and window titles   (link: Title)
+`DooingSectionCount`  Section counts, progress    (link: Comment)
+`DooingSectionRule`   Section separator rule      (link: NonText)
+`DooingTreeGuide`     Nested task connectors      (link: NonText)
+`DooingOverdue`       Overdue due dates           (link: DiagnosticError)
+`DooingDueToday`      Due today                   (link: DiagnosticWarn)
+`DooingDueSoon`       Due within a week           (link: DiagnosticInfo)
+`DooingProgressOn`    Filled progress cells       (link: DiagnosticOk)
+`DooingProgressOff`   Empty progress cells        (link: NonText)
 
  vim:tw=78:ts=8:ft=help:norl:

@@ -4,6 +4,47 @@
 local M = {}
 local calendar = require("dooing.ui.calendar")
 local config = require("dooing.config")
+local constants = require("dooing.ui.constants")
+
+-- Resolves a 1-based buffer line in the main window to an index into
+-- `state.todos`. Goes through the map the renderer builds, which is what lets
+-- the list contain lines that are not todos (section headers, metadata
+-- continuation lines, blank spacers).
+function M.todo_index_at_line(line)
+	if not line then
+		return nil
+	end
+
+	local map = constants.line_to_todo
+	if map and next(map) ~= nil then
+		return map[line]
+	end
+
+	-- Fallback if no map has been built yet: the positional arithmetic the
+	-- classic layout has always used.
+	local state = require("dooing.state")
+	if state.active_filter then
+		local visible_index = 0
+		for i, todo in ipairs(state.todos) do
+			if todo.text:match("#" .. state.active_filter) then
+				visible_index = visible_index + 1
+				if visible_index == line - 3 then
+					return i
+				end
+			end
+		end
+		return nil
+	end
+	return line - 1
+end
+
+-- Resolves the todo under the cursor in the main window
+function M.todo_index_at_cursor()
+	if not constants.win_id or not vim.api.nvim_win_is_valid(constants.win_id) then
+		return nil
+	end
+	return M.todo_index_at_line(vim.api.nvim_win_get_cursor(constants.win_id)[1])
+end
 
 -- Helper function to format relative time
 function M.format_relative_time(timestamp)

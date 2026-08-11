@@ -23,9 +23,11 @@ lua/dooing/
     ├── init.lua            ← UI coordinator: public API that delegates to sub-modules
     ├── constants.lua       ← Shared mutable state: win/buf IDs, namespace, highlight cache
     ├── highlights.lua      ← Highlight group setup and priority-based coloring
-    ├── utils.lua           ← Utility functions: time formatting, time parsing, todo text rendering
-    ├── window.lua          ← Main floating window creation, positioning, quick-keys panel
-    ├── rendering.lua       ← Todo list rendering and highlight application
+    ├── utils.lua           ← Utility functions: time formatting, time parsing, todo text rendering, line→todo lookup
+    ├── window.lua          ← Main floating window creation, positioning, quick-keys panel, title/footer
+    ├── rendering.lua       ← Renderer dispatch (classic vs modern) + classic rendering
+    ├── modern.lua          ← Opt-in "modern" renderer: sections, tree guides, right-aligned metadata
+    ├── panels.lua          ← Opt-in "modern" sub-windows: centered input, help, tags, search
     ├── actions.lua         ← Todo CRUD UI operations (new, edit, toggle, delete, import/export, etc.)
     ├── components.lua      ← Sub-windows: help, tags, search, scratchpad
     ├── keymaps.lua         ← Keymap registration for the todo buffer
@@ -39,7 +41,10 @@ lua/dooing/
 init.lua → config.lua, state.lua, ui/init.lua
 ui/init.lua → ui/constants, ui/window, ui/rendering, ui/actions, ui/keymaps, ui/utils
 ui/actions.lua → ui/constants, ui/utils, state, config, ui/calendar, server
-ui/rendering.lua → ui/constants, ui/utils, ui/highlights, state, config
+ui/rendering.lua → ui/constants, ui/utils, ui/highlights, ui/modern, state, config
+ui/modern.lua → ui/highlights, ui/utils, ui/calendar, config
+ui/components.lua → ui/panels (modern only; classic implementations stay in place)
+ui/panels.lua → ui/constants, config, state
 state.lua → config (for save_path, priorities, nested_tasks settings)
 ```
 
@@ -78,6 +83,7 @@ Todos are stored as a **flat JSON array** in a single file (default: `vim.fn.std
 - When adding a new config option: add default to `M.defaults`, access via `config.options.your_option`
 - **Window size (`window.dimensions`):** may be a table `{ width = <n>, height = <n> }` **or** a function returning such a table (evaluated on every window creation, so sizes can adapt to `vim.o.columns` / `vim.o.lines`). Never read `config.options.window.dimensions` directly — call `config.get_window_dimensions()`, which resolves the function form, accepts positional `{ <w>, <h> }` tables, floors/clamps to the editor size, and falls back to `{ width = 55, height = 20 }` on invalid values
 - The legacy `window.width` / `window.height` options are deprecated: `M.setup()` folds user-supplied values into `window.dimensions` (with a `vim.notify` warning) and removes the legacy keys from `config.options.window`
+- **UI style (`ui.style`):** `"classic"` (default) or `"modern"`. Never read `config.options.ui.*` directly — use `config.is_modern()`, `config.modern_feature("<name>")` (which returns false whenever the style is not modern, so classic can never be affected by a sub-toggle), and `config.ui_icon("<name>")`
 
 ## Code Conventions
 
@@ -116,6 +122,18 @@ Todos are stored as a **flat JSON array** in a single file (default: `vim.fn.std
 
 ## Gotchas & Pitfalls
 
+- **Never map cursor lines to todos with arithmetic.** The buffer contains lines that are not todos (section headers, metadata continuation lines, blank spacers), so `cursor_line - 1` is wrong. Both renderers publish `constants.line_to_todo` (1-based buffer line → index into `state.todos`); read it via `ui/utils.todo_index_at_cursor()` / `todo_index_at_line()`, which return `nil` on non-todo lines. Always guard with `if todo_index and state.todos[todo_index]`.
+- **Any new renderer must populate `constants.line_to_todo`**, or every action silently operates on the wrong todo.
+- **`render_todos({ focus_first = true })` parks the cursor on the first todo**, skipping the usual cursor restore. Pass it only when a list is opened or swapped (`toggle_todo_window`, the global/project switch paths in `init.lua`); a plain `render_todos()` after an edit must preserve the cursor, or every toggle would jump the user back to the top.
+- **Two maps, different jobs.** `constants.line_to_todo` maps *every* line a row occupies (primary line, overflowed metadata, note preview) → todo index, and is what cursor lookups use. `constants.primary_lines` maps todo index → its first line, and is what fold restore and the search jump use. Don't invert `line_to_todo` to find a todo's position — a row can span several lines, so the result is arbitrary.
+- **Modern highlights are byte offsets, not patterns.** `ui/modern.lua` builds each line from typed segments and records exact byte ranges (`#text`, not `strdisplaywidth`) as it goes. Don't re-match the finished line the way the classic renderer does.
+- **Sections group whole subtrees.** Only depth-0 todos choose a section; descendants follow their parent, so nesting is never split. Section counts are top-level items, not rendered rows.
+- **Tree guide columns are 3 wide** (`"│  "` / `"   "`) to match `"├─ "`. Using 2 makes each nesting level drift left by one column.
+- **Prompts go through `panels.prompt()`**, which uses the centered input box in modern and `vim.ui.input` in classic. Import/export deliberately stay on `vim.ui.input` because the centered box has no filename completion.
+- **Panels never parse their own display text.** The tags window keeps a `line_to_tag` map and search keeps `line_to_result`, so labels can carry counts and highlights without the value having to be recovered from the rendered line.
+- **`state.search_todos()` returns `lnum` = index into `state.todos`, not a buffer line.** Resolve it through `constants.line_to_todo` before moving the cursor.
+- **The calendar grid is driven by one `layout` table** (`pad`, `cell`, `num_off`, `header_rows`, `width`, `height`) chosen by style. Rendering, `get_cursor_position()`, `get_day_from_position()` and the highlight loop all derive their offsets from it — never hardcode the old `col * 3 + 2` / `row + 3` numbers again, or day selection silently maps to the wrong date.
+- **Folding differs per style.** Classic uses `foldmethod=indent`, which is inert at the default `shiftwidth=8` (indents 2 and 4 both yield level 0) — pre-existing behavior, left alone. Modern uses `foldmethod=expr` with `modern.foldexpr()`, reading `constants.fold_levels`; rows with children emit `">" .. level` so each parent gets its own fold.
 - **Duplicate function definitions in `state.lua`:** `delete_todo()` and `delete_completed()` are defined twice — the second definitions (near the bottom) override the first to add undo support. This is intentional.
 - **`---@diagnostic disable` lines** at the top of UI files suppress known warnings — don't remove them.
 - **`window.width` / `window.height` no longer exist at runtime** — they are migrated into `window.dimensions` during `config.setup()`. Any new code needing the window size must use `config.get_window_dimensions()` (consumers: `ui/window.lua`, `ui/rendering.lua`, `ui/due_notification.lua`).

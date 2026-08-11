@@ -9,6 +9,10 @@ local calendar = require("dooing.ui.calendar")
 
 -- Creates and manages the help window
 function M.create_help_window()
+  if config.is_modern() then
+    return require("dooing.ui.panels").help()
+  end
+
   if constants.help_win_id and vim.api.nvim_win_is_valid(constants.help_win_id) then
     vim.api.nvim_win_close(constants.help_win_id, true)
     constants.help_win_id = nil
@@ -116,6 +120,10 @@ end
 
 -- Creates and manages the tags window
 function M.create_tag_window()
+  if config.is_modern() then
+    return require("dooing.ui.panels").tags()
+  end
+
   if constants.tag_win_id and vim.api.nvim_win_is_valid(constants.tag_win_id) then
     vim.api.nvim_win_close(constants.tag_win_id, true)
     constants.tag_win_id = nil
@@ -292,6 +300,10 @@ end
 
 -- Search for todos
 function M.create_search_window()
+  if config.is_modern() then
+    return require("dooing.ui.panels").search()
+  end
+
   -- If search window exists and is valid, focus on the existing window and return
   if constants.search_win_id and vim.api.nvim_win_is_valid(constants.search_win_id) then
     vim.api.nvim_set_current_win(constants.search_win_id)
@@ -352,9 +364,8 @@ end
 
 -- Scratchpad component
 function M.open_todo_scratchpad()
-  local cursor = vim.api.nvim_win_get_cursor(constants.win_id)
-  local todo_index = cursor[1] - 1
-  local todo = state.todos[todo_index]
+  local todo_index = require("dooing.ui.utils").todo_index_at_cursor()
+  local todo = todo_index and state.todos[todo_index]
 
   if not todo then
     vim.notify("No todo selected", vim.log.levels.WARN)

@@ -308,7 +308,8 @@ function M.open_global_todo()
 	if ui.is_window_open() then
 		local window = require("dooing.ui.window")
 		window.update_window_title()
-		ui.render_todos()
+		-- A different list is now loaded, so the old cursor position is meaningless
+		ui.render_todos({ focus_first = true })
 	else
 		ui.toggle_todo_window()
 	end
@@ -346,7 +347,8 @@ function M.open_project_todo()
 		if ui.is_window_open() then
 			local window = require("dooing.ui.window")
 			window.update_window_title()
-			ui.render_todos()
+			-- A different list is now loaded, so the old cursor position is meaningless
+			ui.render_todos({ focus_first = true })
 		else
 			ui.toggle_todo_window()
 		end
@@ -411,7 +413,8 @@ function M.create_project_todo(path, custom_filename)
 	if ui.is_window_open() then
 		local window = require("dooing.ui.window")
 		window.update_window_title()
-		ui.render_todos()
+		-- A different list is now loaded, so the old cursor position is meaningless
+		ui.render_todos({ focus_first = true })
 	else
 		ui.toggle_todo_window()
 	end

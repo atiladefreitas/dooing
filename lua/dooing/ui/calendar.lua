@@ -149,6 +149,9 @@ local function setup_highlights()
 	vim.api.nvim_set_hl(0, "CalendarCurrentDay", { link = "Visual" })
 	vim.api.nvim_set_hl(0, "CalendarSelectedDay", { link = "Search" })
 	vim.api.nvim_set_hl(0, "CalendarToday", { link = "Directory" })
+
+	-- The modern style dims out-of-focus parts so the grid reads more clearly
+	vim.api.nvim_set_hl(0, "CalendarWeekdayHeader", { link = "DooingSectionCount", default = true })
 end
 
 local function shift_first_day(first_day, start_day)
@@ -191,24 +194,59 @@ function Cal.create(callback, opts)
 	cal.buf_id = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_buf_set_option(cal.buf_id, "bufhidden", "wipe")
 
-	local width = 26
-	local height = 9
-	local parent_win = vim.api.nvim_get_current_win()
-	local cursor_pos = vim.api.nvim_win_get_cursor(parent_win)
+	-- Grid geometry. The rendering, the cursor placement and the reverse
+	-- position -> day lookup all derive from these, so the layout can change
+	-- without the three drifting apart.
+	--   pad         columns of padding before the first cell
+	--   cell        width of one day cell
+	--   num_off     offset of the two-digit number inside a cell
+	--   header_rows lines above the first row of days
+	local layout = config.is_modern()
+			-- Roomier cells, and a blank line between the weekday names and the grid
+			-- height fits the worst case: 3 header rows + 6 week rows + 1 trailing blank
+		and { pad = 3, cell = 4, num_off = 1, header_rows = 3, width = 32, height = 10 }
+		or { pad = 2, cell = 3, num_off = 0, header_rows = 2, width = 26, height = 9 }
 
-	cal.win_id = vim.api.nvim_open_win(cal.buf_id, true, {
-		relative = "win",
-		win = parent_win,
-		row = cursor_pos[1],
-		col = 3,
-		width = width,
-		height = height,
-		style = "minimal",
-		border = "single",
-		title = string.format(" %s %d ", Cal.MONTH_NAMES[language][cal.month], cal.year),
-		title_pos = "center",
-		zindex = config.options.window.zindex + 4,
-	})
+	local width = layout.width
+	local height = layout.height
+	local title = string.format(" %s %d ", Cal.MONTH_NAMES[language][cal.month], cal.year)
+
+	local win_opts
+	if config.is_modern() then
+		-- Centered on the editor, with the navigation keys spelled out, instead
+		-- of being anchored to wherever the cursor happened to be
+		local keys = calendar_opts.keymaps
+		win_opts = require("dooing.ui.panels").centered(width, height, {
+			zindex_offset = 4,
+			title = title,
+			footer = string.format(
+				" %s%s%s%s move · %s select ",
+				keys.previous_day or "",
+				keys.next_week or "",
+				keys.previous_week or "",
+				keys.next_day or "",
+				keys.select_day or ""
+			),
+		})
+	else
+		local parent_win = vim.api.nvim_get_current_win()
+		local cursor_pos = vim.api.nvim_win_get_cursor(parent_win)
+		win_opts = {
+			relative = "win",
+			win = parent_win,
+			row = cursor_pos[1],
+			col = 3,
+			width = width,
+			height = height,
+			style = "minimal",
+			border = "single",
+			title = title,
+			title_pos = "center",
+			zindex = config.options.window.zindex + 4,
+		}
+	end
+
+	cal.win_id = vim.api.nvim_open_win(cal.buf_id, true, win_opts)
 
 	--- Gets the cursor position for a given day
 	local function get_cursor_position(day)
@@ -224,22 +262,25 @@ function Cal.create(callback, opts)
 		end
 
 		local pos = first_day + day - 1
-		local row = math.floor(pos / 7) + 3
-		local col = (pos % 7) * 3 + 2
+		local row = math.floor(pos / 7) + layout.header_rows + 1
+		local col = (pos % 7) * layout.cell + layout.pad + layout.num_off
 
 		return row, col
 	end
 
 	--- Gets the day from a given cursor position
 	local function get_day_from_position(row, col)
-		if row <= 2 then
+		if row <= layout.header_rows then
 			return nil
 		end
 
-		col = col - 2
-		local col_index = math.floor(col / 3)
+		col = col - layout.pad
+		if col < 0 then
+			return nil
+		end
+		local col_index = math.floor(col / layout.cell)
 		local first_day = shift_first_day(get_day_of_week(cal.year, cal.month, 1), start_day)
-		local day = (row - 3) * 7 + col_index - first_day + 1
+		local day = (row - layout.header_rows - 1) * 7 + col_index - first_day + 1
 
 		if day < 1 or day > get_days_in_month(cal.month, cal.year) then
 			return nil
@@ -263,40 +304,63 @@ function Cal.create(callback, opts)
 		for i = 1, 7 do
 			shifted_weekdays[i] = weekday_names[((i - 1 + shift) % 7) + 1]
 		end
-		table.insert(lines, "  " .. table.concat(shifted_weekdays, " ") .. "  ")
+
+		-- Each weekday name sits at the same offset within its cell as the day
+		-- numbers below it, so the columns line up whatever the cell width is
+		local header = string.rep(" ", layout.pad)
+		for _, name in ipairs(shifted_weekdays) do
+			local trailing = layout.cell - layout.num_off - vim.fn.strdisplaywidth(name)
+			header = header .. string.rep(" ", layout.num_off) .. name .. string.rep(" ", math.max(trailing, 0))
+		end
+		table.insert(lines, header)
+
+		-- Blank line between the weekday names and the grid, when the layout asks for one
+		for _ = 3, layout.header_rows do
+			table.insert(lines, "")
+		end
 
 		local first_day = shift_first_day(get_day_of_week(cal.year, cal.month, 1), start_day)
 		local days_in_month = get_days_in_month(cal.month, cal.year)
 		local day_count = 1
+		local empty_cell = string.rep(" ", layout.cell)
 
 		while day_count <= days_in_month do
-			local current_line = "  "
+			local current_line = string.rep(" ", layout.pad)
 			for i = 0, 6 do
 				if day_count == 1 and i < first_day then
-					current_line = current_line .. "   "
+					current_line = current_line .. empty_cell
 				elseif day_count <= days_in_month then
-					current_line = current_line .. string.format("%2d ", day_count)
+					current_line = current_line
+						.. string.rep(" ", layout.num_off)
+						.. string.format("%2d", day_count)
+						.. string.rep(" ", layout.cell - layout.num_off - 2)
 					day_count = day_count + 1
 				else
-					current_line = current_line .. "   "
+					current_line = current_line .. empty_cell
 				end
 			end
-			current_line = current_line .. " "
 			table.insert(lines, current_line)
 		end
 
 		while #lines < height do
-			table.insert(lines, string.rep(" ", width))
+			table.insert(lines, "")
 		end
 
 		vim.api.nvim_buf_set_lines(cal.buf_id, 0, -1, false, lines)
 		vim.api.nvim_buf_clear_namespace(cal.buf_id, cal.ns_id, 0, -1)
-		vim.api.nvim_buf_add_highlight(cal.buf_id, cal.ns_id, "CalendarHeader", 1, 0, -1)
+		vim.api.nvim_buf_add_highlight(
+			cal.buf_id,
+			cal.ns_id,
+			config.is_modern() and "CalendarWeekdayHeader" or "CalendarHeader",
+			1,
+			0,
+			-1
+		)
 
-		for row = 3, #lines do
+		for row = layout.header_rows + 1, #lines do
 			local line = lines[row]
 			for col = 0, 6 do
-				local start_col = col * 3 + 2
+				local start_col = col * layout.cell + layout.pad + layout.num_off
 				local day_str = line:sub(start_col + 1, start_col + 2)
 				local day_num = tonumber(day_str)
 

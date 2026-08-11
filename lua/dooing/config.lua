@@ -24,6 +24,30 @@ M.defaults = {
 			right = 2,
 		},
 	},
+	-- Opt-in redesigned interface. `style = "classic"` (the default) keeps the
+	-- original rendering untouched; `style = "modern"` enables the reworked
+	-- layout. The individual toggles below only apply to the modern style and
+	-- can each be turned off to mix and match.
+	ui = {
+		style = "classic", -- "classic" | "modern"
+		sections = true, -- group top-level todos under status headings
+		priority_bar = true, -- colored marker instead of coloring the whole row
+		tree_connectors = true, -- draw ├─ / └─ / │ guides for nested tasks
+		note_preview = true, -- show the first line of a todo's notes beneath it
+		progress = true, -- progress bar in the title, summary in the footer
+		compact_quick_keys = true, -- single-strip quick keys instead of the tall panel
+		section_titles = {
+			in_progress = "IN PROGRESS",
+			pending = "PENDING",
+			done = "DONE",
+		},
+		icons = {
+			priority_bar = "▎",
+			overdue = "󰀦",
+			progress_on = "▰",
+			progress_off = "▱",
+		},
+	},
 	quick_keys = true,
 	notes = {
 		icon = "󱞁",
@@ -236,6 +260,36 @@ function M.get_window_dimensions()
 		width = math.min(math.max(math.floor(dimensions.width), 1), max_width),
 		height = math.min(math.max(math.floor(dimensions.height), 1), max_height),
 	}
+end
+
+---Whether the redesigned ("modern") interface is enabled
+---@return boolean
+function M.is_modern()
+	local ui = M.options.ui
+	return type(ui) == "table" and ui.style == "modern"
+end
+
+---Whether a modern sub-feature is active. Every sub-feature additionally
+---requires `ui.style == "modern"`, so the classic layout is never affected.
+---@param name string key in `ui`, e.g. "sections"
+---@return boolean
+function M.modern_feature(name)
+	if not M.is_modern() then
+		return false
+	end
+	return M.options.ui[name] ~= false
+end
+
+---Reads an icon from `ui.icons`, falling back to the shipped default
+---@param name string
+---@return string
+function M.ui_icon(name)
+	local icons = (M.options.ui or {}).icons or {}
+	local value = icons[name]
+	if type(value) == "string" then
+		return value
+	end
+	return M.defaults.ui.icons[name] or ""
 end
 
 function M.setup(opts)

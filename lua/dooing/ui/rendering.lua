@@ -23,17 +23,10 @@ local function save_fold_state()
 		local current_win = vim.api.nvim_get_current_win()
 		vim.api.nvim_set_current_win(constants.win_id)
 		
-		-- Build a map of line numbers to todo indices
-		local line_to_todo = {}
-		local todo_line = state.active_filter and 3 or 1 -- Start after header
-		
-		for i, todo in ipairs(state.todos) do
-			if not state.active_filter or todo.text:match("#" .. state.active_filter) then
-				todo_line = todo_line + 1
-				line_to_todo[todo_line] = i
-			end
-		end
-		
+		-- The map published by the previous render describes the buffer as it
+		-- currently stands on screen
+		local line_to_todo = constants.line_to_todo or {}
+
 		-- Check which todos have closed folds
 		for line = 1, line_count do
 			local fold_level = vim.fn.foldlevel(line)
@@ -73,19 +66,16 @@ local function restore_fold_state(folds)
 		-- First, open all folds
 		vim.cmd("normal! zR")
 		
-		-- Build a map of todo IDs to line numbers
+		-- Where each todo now lives. Uses the primary-line map rather than
+		-- inverting `line_to_todo`, whose rows can span several lines.
 		local todo_to_line = {}
-		local todo_line = state.active_filter and 3 or 1 -- Start after header
-		
-		for i, todo in ipairs(state.todos) do
-			if not state.active_filter or todo.text:match("#" .. state.active_filter) then
-				todo_line = todo_line + 1
-				if todo.id then
-					todo_to_line[todo.id] = todo_line
-				end
+		for todo_index, line in pairs(constants.primary_lines or {}) do
+			local todo = state.todos[todo_index]
+			if todo and todo.id then
+				todo_to_line[todo.id] = line
 			end
 		end
-		
+
 		-- Close folds for todos that were previously folded
 		for todo_id, _ in pairs(folds) do
 			local line = todo_to_line[todo_id]
@@ -104,8 +94,91 @@ local function restore_fold_state(folds)
 	end)
 end
 
+-- Renders the list using the modern style. Lines and highlight ranges are both
+-- produced by `ui/modern.lua`, so nothing has to be re-matched here.
+local function render_modern()
+	local modern = require("dooing.ui.modern")
+	local result = modern.build(state.todos, state.active_filter)
+
+	vim.api.nvim_buf_set_lines(constants.buf_id, 0, -1, false, result.lines)
+	constants.line_to_todo = result.line_to_todo
+	constants.primary_lines = result.primary_lines
+	constants.fold_levels = result.fold_levels
+
+	-- Fold levels changed, so any cached fold computation is stale
+	if constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+		vim.api.nvim_win_call(constants.win_id, function()
+			vim.cmd("silent! normal! zx")
+		end)
+	end
+
+	for _, span in ipairs(result.spans) do
+		vim.api.nvim_buf_add_highlight(
+			constants.buf_id,
+			constants.ns_id,
+			span.hl_group,
+			span.line,
+			span.start_col,
+			span.end_col
+		)
+	end
+end
+
+-- First buffer line belonging to a todo, or nil when the list is empty
+local function first_todo_line()
+	local first
+	for line in pairs(constants.line_to_todo or {}) do
+		if not first or line < first then
+			first = line
+		end
+	end
+	return first
+end
+
+-- Locks the buffer again and restores folds, cursor and window chrome.
+-- With `focus_first`, the cursor is parked on the first todo instead of being
+-- restored -- used when a list is opened or swapped, where the previous cursor
+-- position is meaningless.
+local function finish_render(fold_state, cursor_pos, focus_first)
+	vim.api.nvim_buf_set_option(constants.buf_id, "modifiable", false)
+
+	-- The title carries the progress bar, so it has to be refreshed whenever
+	-- the counts can have changed
+	if config.modern_feature("progress") then
+		require("dooing.ui.window").update_window_title()
+	end
+
+	-- Restore fold state and cursor position after rendering (with a small delay to ensure buffer is ready)
+	vim.defer_fn(function()
+		restore_fold_state(fold_state)
+
+		local target = cursor_pos
+		if focus_first then
+			local line = first_todo_line()
+			target = line and { line, 0 } or nil
+		end
+
+		-- Restore (or set) the cursor position
+		if target and constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
+			local current_win = vim.api.nvim_get_current_win()
+			vim.api.nvim_set_current_win(constants.win_id)
+			local line_count = vim.api.nvim_buf_line_count(constants.buf_id)
+			-- Ensure cursor position is valid
+			if target[1] <= line_count then
+				pcall(vim.api.nvim_win_set_cursor, constants.win_id, target)
+			end
+			if vim.api.nvim_win_is_valid(current_win) then
+				vim.api.nvim_set_current_win(current_win)
+			end
+		end
+	end, 15)
+end
+
 -- Main function for todos rendering
-function M.render_todos()
+---@param opts table|nil { focus_first = boolean } park the cursor on the first todo
+function M.render_todos(opts)
+	local focus_first = opts and opts.focus_first or false
+
 	if not constants.buf_id then
 		return
 	end
@@ -125,10 +198,16 @@ function M.render_todos()
 	-- Create the buffer
 	vim.api.nvim_buf_set_option(constants.buf_id, "modifiable", true)
 	vim.api.nvim_buf_clear_namespace(constants.buf_id, constants.ns_id, 0, -1)
-	local lines = { "" }
-
 	-- Sort todos and get config
 	state.sort_todos()
+
+	if config.is_modern() then
+		render_modern()
+		finish_render(fold_state, cursor_pos, focus_first)
+		return
+	end
+
+	local lines = { "" }
 	local lang = calendar and calendar.get_language()
 	local formatting = config.options.formatting
 	local done_icon = config.options.formatting.done.icon
@@ -177,6 +256,23 @@ function M.render_todos()
 		lines[i] = line:gsub("\n", " ")
 	end
 	vim.api.nvim_buf_set_lines(constants.buf_id, 0, -1, false, lines)
+
+	-- Publish the line -> todo mapping for the classic layout, matching the
+	-- positional arithmetic this layout has always used
+	local classic_map = {}
+	local classic_primary = {}
+	local line_offset = state.active_filter and 3 or 1
+	local visible_count = 0
+	for index, todo in ipairs(state.todos) do
+		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
+			visible_count = visible_count + 1
+			classic_map[line_offset + visible_count] = index
+			classic_primary[index] = line_offset + visible_count
+		end
+	end
+	constants.line_to_todo = classic_map
+	-- One line per todo in the classic layout, so the two maps agree
+	constants.primary_lines = classic_primary
 
 	-- Helper function to add highlight
 	local function add_hl(line_nr, start_col, end_col, hl_group)
@@ -258,25 +354,8 @@ function M.render_todos()
 		end
 	end
 
-	vim.api.nvim_buf_set_option(constants.buf_id, "modifiable", false)
-	
-	-- Restore fold state and cursor position after rendering (with a small delay to ensure buffer is ready)
-	vim.defer_fn(function()
-		restore_fold_state(fold_state)
-		-- Restore cursor position if it was saved
-		if cursor_pos and constants.win_id and vim.api.nvim_win_is_valid(constants.win_id) then
-			local current_win = vim.api.nvim_get_current_win()
-			vim.api.nvim_set_current_win(constants.win_id)
-			local line_count = vim.api.nvim_buf_line_count(constants.buf_id)
-			-- Ensure cursor position is valid
-			if cursor_pos[1] <= line_count then
-				pcall(vim.api.nvim_win_set_cursor, constants.win_id, cursor_pos)
-			end
-			if vim.api.nvim_win_is_valid(current_win) then
-				vim.api.nvim_set_current_win(current_win)
-			end
-		end
-	end, 15)
+	finish_render(fold_state, cursor_pos, focus_first)
 end
 
-return M 
+return M
+

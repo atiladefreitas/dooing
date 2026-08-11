@@ -16,6 +16,27 @@ function M.setup_highlights()
 	vim.api.nvim_set_hl(0, "DooingHelpText", { link = "Directory", default = true })
 	vim.api.nvim_set_hl(0, "DooingTimestamp", { link = "Comment", default = true })
 
+	-- Groups used by the modern style. All are `default` links so a colorscheme
+	-- or the user can override any of them with their own `nvim_set_hl` call.
+	vim.api.nvim_set_hl(0, "DooingSectionTitle", { link = "Title", default = true })
+	vim.api.nvim_set_hl(0, "DooingSectionCount", { link = "Comment", default = true })
+	vim.api.nvim_set_hl(0, "DooingSectionRule", { link = "NonText", default = true })
+	vim.api.nvim_set_hl(0, "DooingTreeGuide", { link = "NonText", default = true })
+	vim.api.nvim_set_hl(0, "DooingText", { link = "Normal", default = true })
+	vim.api.nvim_set_hl(0, "DooingMeta", { link = "Comment", default = true })
+	vim.api.nvim_set_hl(0, "DooingTag", { link = "Type", default = true })
+	vim.api.nvim_set_hl(0, "DooingOverdue", { link = "DiagnosticError", default = true })
+	vim.api.nvim_set_hl(0, "DooingDueToday", { link = "DiagnosticWarn", default = true })
+	vim.api.nvim_set_hl(0, "DooingDueSoon", { link = "DiagnosticInfo", default = true })
+	vim.api.nvim_set_hl(0, "DooingProgressOn", { link = "DiagnosticOk", default = true })
+	vim.api.nvim_set_hl(0, "DooingProgressOff", { link = "NonText", default = true })
+
+	-- The quick keys panel has always referenced these groups without ever
+	-- defining them, which left it unstyled.
+	vim.api.nvim_set_hl(0, "DooingQuickTitle", { link = "Title", default = true })
+	vim.api.nvim_set_hl(0, "DooingQuickKey", { link = "Identifier", default = true })
+	vim.api.nvim_set_hl(0, "DooingQuickDesc", { link = "Comment", default = true })
+
 	-- Cache the base highlight groups
 	constants.highlight_cache.pending = "DooingPending"
 	constants.highlight_cache.done = "DooingDone"
