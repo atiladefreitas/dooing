@@ -6,6 +6,26 @@ local calendar = require("dooing.ui.calendar")
 local config = require("dooing.config")
 local constants = require("dooing.ui.constants")
 
+-- Escapes Lua pattern magic characters so a string containing e.g. "-" or
+-- "/" can be spliced into a match/find/gsub pattern and matched literally.
+function M.escape_pattern(text)
+	return (text:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%1"))
+end
+
+-- Tags are `#[%w_%-/]+` runs. Matching a tag by splicing it into a pattern
+-- (even escaped) is a substring test, so filtering by "#labels" would also
+-- match "#labels-web" — a different tag that merely shares a prefix. Extract
+-- every tag the same way `get_all_tags` does and compare for equality
+-- instead, so a tag is only ever "found" as a whole token.
+function M.has_tag(text, tag)
+	for found in text:gmatch("#([%w_%-/]+)") do
+		if found == tag then
+			return true
+		end
+	end
+	return false
+end
+
 -- Resolves a 1-based buffer line in the main window to an index into
 -- `state.todos`. Goes through the map the renderer builds, which is what lets
 -- the list contain lines that are not todos (section headers, metadata
@@ -26,7 +46,7 @@ function M.todo_index_at_line(line)
 	if state.active_filter then
 		local visible_index = 0
 		for i, todo in ipairs(state.todos) do
-			if todo.text:match("#" .. state.active_filter) then
+			if M.has_tag(todo.text, state.active_filter) then
 				visible_index = visible_index + 1
 				if visible_index == line - 3 then
 					return i

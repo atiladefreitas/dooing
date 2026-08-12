@@ -221,7 +221,7 @@ function M.render_todos(opts)
 	
 	-- Loop through all todos and render them using the format
 	for _, todo in ipairs(state.todos) do
-		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
+		if not state.active_filter or utils.has_tag(todo.text, state.active_filter) then
 			-- use the appropriate format based on the todo's status and lang
 			if todo.notes == nil or todo.notes == "" then
 				tmp_notes_icon = ""
@@ -264,7 +264,7 @@ function M.render_todos(opts)
 	local line_offset = state.active_filter and 3 or 1
 	local visible_count = 0
 	for index, todo in ipairs(state.todos) do
-		if not state.active_filter or todo.text:match("#" .. state.active_filter) then
+		if not state.active_filter or utils.has_tag(todo.text, state.active_filter) then
 			visible_count = visible_count + 1
 			classic_map[line_offset + visible_count] = index
 			classic_primary[index] = line_offset + visible_count
@@ -304,9 +304,9 @@ function M.render_todos(opts)
 				end
 
 				-- Tags highlight
-				for tag in line:gmatch("#(%w+)") do
+				for tag in line:gmatch("#([%w_%-/]+)") do
 					local tag_pattern = "#" .. tag
-					local start_idx = line:find(tag_pattern) - 1
+					local start_idx = line:find("#" .. utils.escape_pattern(tag)) - 1
 					add_hl(line_nr, start_idx, start_idx + #tag_pattern, "Type")
 				end
 

@@ -210,9 +210,9 @@ function M.show_due_notification()
 					end
 					
 					-- Tags highlight
-					for tag in line:gmatch("#(%w+)") do
+					for tag in line:gmatch("#([%w_%-/]+)") do
 						local tag_pattern = "#" .. tag
-						local start_idx = line:find(tag_pattern)
+						local start_idx = line:find("#" .. utils.escape_pattern(tag))
 						if start_idx then
 							vim.api.nvim_buf_add_highlight(due_buf_id, ns_id, "Type", line_nr, start_idx - 1, start_idx + #tag_pattern - 1)
 						end

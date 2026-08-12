@@ -11,6 +11,7 @@ local M = {}
 local constants = require("dooing.ui.constants")
 local config = require("dooing.config")
 local state = require("dooing.state")
+local utils = require("dooing.ui.utils")
 
 --------------------------------------------------------------------------------
 -- Geometry
@@ -393,7 +394,7 @@ end
 local function tag_count(tag)
 	local count = 0
 	for _, todo in ipairs(state.todos) do
-		if todo.text:match("#" .. tag .. "%f[%W]") then
+		if utils.has_tag(todo.text, tag) then
 			count = count + 1
 		end
 	end
@@ -585,7 +586,7 @@ local function show_results(query, results)
 		local text_start = 2 + #icon + 1
 		table.insert(spans, { line = line_nr, start_col = text_start, end_col = #line, hl_group = base_hl })
 
-		for tag_start, tag in text:gmatch("()(#[%w_%-]+)") do
+		for tag_start, tag in text:gmatch("()(#[%w_%-/]+)") do
 			local from = text_start + tag_start - 1
 			table.insert(spans, { line = line_nr, start_col = from, end_col = from + #tag, hl_group = "DooingTag" })
 		end
