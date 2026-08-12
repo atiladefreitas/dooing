@@ -261,128 +261,33 @@ require("dooing").setup({
 
 Classic (default):
 
-```
-   ○ Fix login redirect #work [≈ 2h] [!August 8, 2026]  @just now
-     ○ Reproduce on staging                             @just now
-       ○ Capture HAR file                               @just now
-     ○ Add regression test                              @just now
-  󱞁 ◐ Write release notes #docs [≈ 1d] [August 11, 2026] @just now
-   ✓ Update CI matrix #ops                              @just now
-```
+![Dooing classic UI](doc/Classic.png)
 
 Modern:
 
-```
-╭──────────── Global to-dos  1/8 ▰▰▱▱▱▱▱▱ ────────────╮
-│  IN PROGRESS ───────────────────────────────────── 1 │
-│  ◐ 󱞁 Write release notes #docs                       │
-│                             ≈1d  due today  just now │
-│                                                      │
-│  PENDING ───────────────────────────────────────── 3 │
-│ ▎○ Fix login redirect #work                          │
-│                          ≈2h  󰀦 overdue 3d  just now │
-│  ├─ ○ Reproduce on staging                  just now │
-│  │  └─ ○ Capture HAR file                   just now │
-│  └─ ○ Add regression test                   just now │
-│ ▎○ Plan Q3 roadmap #work      September 20  just now │
-│                                                      │
-│  DONE ──────────────────────────────────────────── 1 │
-│  ✓ Update CI matrix #ops                    just now │
-╰──────── [?] for help · 1 overdue ────────────────────╯
-```
+![Dooing modern UI](doc/Modern.png)
 
 What changes:
 
-- **Status sections.** Top-level todos are grouped under `IN PROGRESS` / `PENDING` /
-  `DONE` with a count. Subtasks always stay under their parent, so nesting is never
-  split across sections.
-- **Priority as a marker.** Only the `▎` marker and the status icon carry the priority
-  color, instead of tinting the entire row, so the text stays readable.
-- **Right-aligned dimmed metadata.** Estimate, due date and age move to the right of the
-  row, or onto their own dimmed line when the row would otherwise be squeezed.
-- **Tree connectors.** Nested tasks are drawn with `├─` / `└─` / `│` guides.
-- **Sharper due dates.** Overdue reads `󰀦 overdue 3d` in red, with distinct accents for
-  `due today`, `due tomorrow` and `in 5d`; anything further out degrades to a plain date.
-- **Progress indicators.** The title carries a completion bar and the footer reports
-  overdue counts.
-- **Compact quick keys.** The fixed 8-line panel becomes a width-adaptive strip.
-- **Working fold support.** Folds are computed from each todo's real nesting depth, so
-  `zc` on a parent collapses exactly its own subtree. The classic style folds on
-  character indent, which does nothing unless `shiftwidth` happens to be small.
-- **Note previews.** A todo's description lives in its notes (`<leader>p` opens the
-  scratchpad). The first line is shown beneath the todo, dimmed and aligned with the
-  text, truncated with `…` when it does not fit:
+- **Status sections** — top-level todos grouped under `IN PROGRESS` / `PENDING` / `DONE`
+  with counts, subtasks always staying with their parent
+- **Priority as a marker** — only the `▎` marker and the status icon carry the priority
+  colour, instead of tinting the whole row
+- **Right-aligned dimmed metadata** — estimate, due date and age, dropping to their own
+  line only when the row would be squeezed
+- **Tree connectors** for nested tasks, plus folding by real nesting depth, so `zc` on a
+  parent collapses exactly its subtree
+- **Note previews** — the first line of a todo's notes, dimmed, beneath the task
+- **Sharper due dates** — `overdue 3d`, `due today`, `due tomorrow`, `in 5d`, each with
+  its own accent, plain dates further out
+- **Progress in the chrome** — a completion bar in the title, overdue count in the footer
+- **Centred sub-windows** — help, tags, search, the calendar and every text prompt,
+  centred on the editor and sized from their own content
 
-  ```
-    ◐ 󱞁 Ship the v2 release notes #docs     ≈1d  due today  2d
-        Highlight the new folding support and the modern UI opt-in.
-  ```
+For the full breakdown, see the
+[v3.0.0 release notes](https://github.com/atiladefreitas/dooing/releases/tag/v3.0.0).
 
-  Every line a todo occupies — its own row, an overflowed metadata line and the note
-  preview — resolves back to that todo, so pressing `<leader>p`, `x` or `d` works from
-  any of them. Set `ui.note_preview = false` to show only the `󱞁` indicator.
-- **Redesigned sub-windows.** Help, tags, search, the calendar and every text prompt are
-  centered on the editor and sized from their own content (see below).
-
-#### Sub-windows
-
-In the modern style all secondary windows are centered on the editor and sized from
-their content, instead of being positioned against a hard-coded guess at the main
-window's width.
-
-- **Prompts** (new to-do, sub-task, edit, time estimation, tag rename, search) use a
-  centered input box that opens straight into insert mode, rather than the cmdline:
-
-  ```
-  ╭───────────────── New to-do ──────────────────╮
-  │ buy milk #groceries                          │
-  ╰─ <CR> confirm · <Esc> cancel · #tag to categorise ─╯
-  ```
-
-  Import/export keep using `vim.ui.input`, since they rely on filename completion.
-
-- **Help** is grouped by what the keys actually do, with the key column aligned across
-  all groups, and it skips any keymap you have disabled:
-
-  ```
-    TODOS ──────────────────────────────────────
-     i            Add new to-do
-     <leader>tn   Add nested sub-task
-     x            Toggle to-do status
-    METADATA ───────────────────────────────────
-     H            Add due date
-  ```
-
-- **Tags** shows how many todos carry each tag:
-
-  ```
-    #docs                         1
-    #ops                          1
-    #work                         2
-  ```
-
-- **Search** prompts in the centered input, then lists matches with the matched text
-  highlighted and the result count in the footer. `<CR>` jumps to the todo in the main
-  list, clearing an active tag filter first if it would hide the match.
-
-- **Calendar** is centered on the editor with the navigation keys spelled out in the
-  footer, instead of being anchored to wherever the cursor happened to be. The grid is
-  roomier than the classic one (32×10 vs 26×9), with wider day cells and the weekday
-  names separated from the days:
-
-  ```
-  ╭─────── August 2026 ────────╮
-  │                            │
-  │    Su  Mo  Tu  We  Th  Fr  Sa │
-  │                            │
-  │                          1 │
-  │     2   3   4   5   6   7   8 │
-  │     9  10  11  12  13  14  15 │
-  │    16  17  18  19  20  21  22 │
-  ╰──── hjkl move · <CR> select ───╯
-  ```
-
-Every bullet above has its own toggle under `ui`, so you can mix and match — for example,
+Every item above has its own toggle under `ui`, so you can mix and match — for example,
 sections without tree guides:
 
 ```lua
@@ -391,7 +296,7 @@ require("dooing").setup({
 })
 ```
 
-All colors are ordinary highlight groups linked to sensible defaults, so a colorscheme
+All colours are ordinary highlight groups linked to sensible defaults, so a colorscheme
 or your own config can override any of them:
 
 ```lua
