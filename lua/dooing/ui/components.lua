@@ -6,6 +6,7 @@ local constants = require("dooing.ui.constants")
 local state = require("dooing.state")
 local config = require("dooing.config")
 local calendar = require("dooing.ui.calendar")
+local utils = require("dooing.ui.utils")
 
 -- Creates and manages the help window
 function M.create_help_window()
@@ -258,8 +259,8 @@ local function handle_search_query(query)
     if line:match("%s+[" .. done_icon .. pending_icon .. in_progress_icon .. "]") then
       local hl_group = line:match(done_icon) and "DooingDone" or "DooingPending"
       vim.api.nvim_buf_add_highlight(constants.search_buf_id, constants.ns_id, hl_group, i - 1, 0, -1)
-      for tag in line:gmatch("#(%w+)") do
-        local start_idx = line:find("#" .. tag) - 1
+      for tag in line:gmatch("#([%w_%-/]+)") do
+        local start_idx = line:find("#" .. utils.escape_pattern(tag)) - 1
         vim.api.nvim_buf_add_highlight(constants.search_buf_id, constants.ns_id, "Type", i - 1, start_idx,
           start_idx + #tag + 1)
       end

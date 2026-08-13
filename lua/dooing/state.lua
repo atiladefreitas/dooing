@@ -3,6 +3,7 @@ local vim = vim
 
 local M = {}
 local config = require("dooing.config")
+local utils = require("dooing.ui.utils")
 
 -- Cache frequently accessed values
 local priority_weights = {}
@@ -447,7 +448,7 @@ function M.get_all_tags()
 	local seen = {}
 	for _, todo in ipairs(M.todos) do
 		-- Remove unused todo_tags variable
-		for tag in todo.text:gmatch("#(%w+)") do
+		for tag in todo.text:gmatch("#([%w_%-/]+)") do
 			if not seen[tag] then
 				seen[tag] = true
 				table.insert(tags, tag)
@@ -783,9 +784,22 @@ function M.compare_todos_ignore_completion(a, b)
 	return todo_a.created_at < todo_b.created_at
 end
 
+-- A tag is a whole `#[%w_%-/]+` run, so replacing/removing "#labels" must not
+-- touch "#labels-web" (a different tag that merely shares a prefix). Walk
+-- every `#tag` occurrence via the same extraction pattern `get_all_tags`
+-- uses, and only rewrite the ones that are an exact match.
+local function replace_exact_tag(text, tag, replacement)
+	return (text:gsub("#([%w_%-/]+)", function(found)
+		if found == tag then
+			return replacement
+		end
+		return "#" .. found
+	end))
+end
+
 function M.rename_tag(old_tag, new_tag)
 	for _, todo in ipairs(M.todos) do
-		todo.text = todo.text:gsub("#" .. old_tag, "#" .. new_tag)
+		todo.text = replace_exact_tag(todo.text, old_tag, "#" .. new_tag)
 	end
 	save_todos()
 end
@@ -793,8 +807,7 @@ end
 function M.delete_tag(tag)
 	local remaining_todos = {}
 	for _, todo in ipairs(M.todos) do
-		todo.text = todo.text:gsub("#" .. tag .. "(%s)", "%1")
-		todo.text = todo.text:gsub("#" .. tag .. "$", "")
+		todo.text = replace_exact_tag(todo.text, tag, "")
 		table.insert(remaining_todos, todo)
 	end
 	M.todos = remaining_todos
@@ -1007,8 +1020,8 @@ function M.delete_todo_with_confirmation(todo_index, win_id, calendar, callback)
 	vim.api.nvim_buf_add_highlight(confirm_buf, ns, main_hl, 2, 0, #todo_display_text)
 
 	-- Tag highlights
-	for tag in current_todo.text:gmatch("#(%w+)") do
-		local start_idx = todo_display_text:find("#" .. tag)
+	for tag in current_todo.text:gmatch("#([%w_%-/]+)") do
+		local start_idx = todo_display_text:find("#" .. utils.escape_pattern(tag))
 		if start_idx then
 			vim.api.nvim_buf_add_highlight(confirm_buf, ns, "Type", 2, start_idx - 1, start_idx + #tag)
 		end

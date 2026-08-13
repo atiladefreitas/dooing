@@ -256,7 +256,7 @@ local function split_tags(text)
 	local cursor = 1
 
 	while true do
-		local tag_start, tag_end = text:find("#[%w_%-]+", cursor)
+		local tag_start, tag_end = text:find("#[%w_%-/]+", cursor)
 		if not tag_start then
 			break
 		end
@@ -462,7 +462,7 @@ function M.build(todos, active_filter)
 	-- Collect the visible todos, keeping their real index in `state.todos`
 	local visible = {}
 	for index, todo in ipairs(todos) do
-		if not active_filter or todo.text:match("#" .. active_filter) then
+		if not active_filter or utils.has_tag(todo.text, active_filter) then
 			table.insert(visible, { todo = todo, index = index })
 		end
 	end
@@ -604,7 +604,7 @@ function M.stats(todos, active_filter)
 	local now = os.time()
 
 	for _, todo in ipairs(todos) do
-		if not active_filter or todo.text:match("#" .. active_filter) then
+		if not active_filter or utils.has_tag(todo.text, active_filter) then
 			total = total + 1
 			if todo.done then
 				done = done + 1
