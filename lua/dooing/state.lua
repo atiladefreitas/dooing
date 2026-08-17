@@ -48,24 +48,187 @@ local function encode_json(value)
 	return json_str
 end
 
+-- What each todo looked like at the last load/save, keyed by id and with
+-- `updated_at` stripped. Mutations happen all over the UI layer, so instead of
+-- trusting every call site to bump `updated_at`, the save path detects changes
+-- itself by diffing against this snapshot — the same reasoning as bloocky's
+-- base_hash. Rebuilt on load so a fresh session diffs against the file, not
+-- against nothing.
+local last_saved = nil
+
+local function syncable_copy(todo)
+	local copy = vim.deepcopy(todo)
+	copy.updated_at = nil
+	return copy
+end
+
+-- Stamp `updated_at` on every todo that changed since the snapshot, then
+-- refresh the snapshot. New todos (no snapshot entry) are stamped too.
+local function stamp_updated_at(now)
+	now = now or os.time()
+	local next_snapshot = {}
+	for _, todo in ipairs(M.todos) do
+		if type(todo) == "table" and todo.id then
+			local copy = syncable_copy(todo)
+			local before = last_saved and last_saved[todo.id]
+			if not before or not vim.deep_equal(before, copy) then
+				todo.updated_at = now
+			end
+			todo.updated_at = todo.updated_at or todo.created_at or now
+			next_snapshot[todo.id] = copy
+		end
+	end
+	last_saved = next_snapshot
+end
+
+-- Rebuild the snapshot from the todos as just loaded, so the first save of a
+-- session only stamps what actually changed in this session.
+local function snapshot_loaded()
+	last_saved = {}
+	for _, todo in ipairs(M.todos) do
+		if type(todo) == "table" and todo.id then
+			last_saved[todo.id] = syncable_copy(todo)
+		end
+	end
+end
+
+-- What the file looked like when WE last touched it. If it moved under us,
+-- another writer (a second Neovim instance, or the sync server in one) got
+-- there first, and a blind write would destroy their work.
+local known_stat = nil
+
+local function file_signature(path)
+	local stat = vim.uv.fs_stat(path)
+	if not stat then
+		return nil
+	end
+	return ("%d:%d:%d"):format(stat.mtime.sec, stat.mtime.nsec or 0, stat.size)
+end
+
+local function record_stat(path)
+	known_stat = file_signature(path)
+end
+
+local function file_moved_under_us(path)
+	local now = file_signature(path)
+	-- Never-seen (fresh session) counts as unmoved: there is nothing to lose.
+	return known_stat ~= nil and now ~= nil and now ~= known_stat
+end
+
+local function read_disk_todos(path)
+	local file = io.open(path, "r")
+	if not file then
+		return nil
+	end
+	local content = file:read("*all")
+	file:close()
+	if not content or content == "" then
+		return nil
+	end
+	local ok, decoded = pcall(vim.json.decode, content)
+	if ok and type(decoded) == "table" then
+		return decoded
+	end
+	return nil
+end
+
+-- Created 0600: with sync enabled this file is served to paired devices
+-- and mirrors someone's whole task list — not other local users' business.
+local function write_file(path, contents)
+	local fd = vim.uv.fs_open(path, "w", tonumber("600", 8))
+	if not fd then
+		-- Fall back to io.open so an exotic path failure behaves like before.
+		local file = io.open(path, "w")
+		if file then
+			file:write(contents)
+			file:close()
+		end
+		record_stat(path)
+		return
+	end
+	vim.uv.fs_write(fd, contents)
+	vim.uv.fs_close(fd)
+	-- The mode above only applies at creation; tighten files from before it.
+	pcall(vim.uv.fs_chmod, path, tonumber("600", 8))
+	record_stat(path)
+end
+
 local function save_todos()
 	local save_path = M.current_save_path or config.options.save_path
-	local file = io.open(save_path, "w")
-	if file then
-		file:write(encode_json(M.todos))
-		file:close()
+
+	-- Lost-update protection. The pre-stamp snapshot is a genuine three-way
+	-- base: what we and the file last agreed on. If the file moved under us,
+	-- merge our in-memory edits with the disk's through the same engine the
+	-- device sync uses, instead of clobbering whoever wrote first.
+	local pre_snapshot = last_saved
+	stamp_updated_at()
+
+	if file_moved_under_us(save_path) then
+		local disk = read_disk_todos(save_path)
+		if disk then
+			local merge = require("dooing.sync.merge")
+			local result = merge.merge({
+				base = pre_snapshot or {},
+				local_todos = M.todos,
+				remote_todos = disk,
+				local_device = "memory",
+				remote_device = "disk",
+			})
+			M.todos = result.todos
+			snapshot_loaded()
+			if #result.conflicts > 0 then
+				vim.notify(
+					("Dooing: the todos file changed underneath this session; %d conflict%s resolved (:DooingSyncReport)"):format(
+						#result.conflicts,
+						#result.conflicts == 1 and "" or "s"
+					),
+					vim.log.levels.WARN
+				)
+				pcall(function()
+					require("dooing.sync.store").record_conflicts("concurrent-writer", result.conflicts)
+				end)
+			end
+		end
 	end
+
+	write_file(save_path, encode_json(M.todos))
 end
 
 -- Expose it as part of the module
 M.save_todos = save_todos
-M.save_todos_to_current_path = function()
-	local save_path = M.current_save_path or config.options.save_path
-	local file = io.open(save_path, "w")
-	if file then
-		file:write(encode_json(M.todos))
-		file:close()
+M.save_todos_to_current_path = save_todos
+
+-- Replace the GLOBAL list with already-merged todos, without re-stamping:
+-- the sync exchange computed updated_at values both sides must agree on, and
+-- stamping them again here would make this side diverge from what it just
+-- told the device. Returns true when the live list was the one replaced (the
+-- caller should re-render); false when a project list was loaded and only
+-- the global file was written.
+function M.replace_global_todos(todos)
+	local global_path = config.options.save_path
+	local live = M.current_save_path == nil or M.current_save_path == global_path
+	if live then
+		M.todos = todos
+		snapshot_loaded()
 	end
+	write_file(global_path, encode_json(todos))
+	return live
+end
+
+-- Re-read the current list when the file changed since we last touched it —
+-- a paired device may have pushed while the window was closed. Returns true
+-- when a reload happened.
+function M.reload_if_changed()
+	local path = M.current_save_path or config.options.save_path
+	if not file_moved_under_us(path) then
+		return false
+	end
+	if M.current_save_path and M.current_save_path ~= config.options.save_path then
+		M.load_todos_from_path(M.current_save_path)
+	else
+		M.load_todos()
+	end
+	return true
 end
 
 -- Get git root directory
@@ -161,19 +324,24 @@ function M.load_todos_from_path(path)
 	end
 
 	update_priority_weights()
+	record_stat(path)
 	local file = io.open(path, "r")
 	if file then
 		local content = file:read("*all")
 		file:close()
 		if content and content ~= "" then
 			M.todos = vim.fn.json_decode(content)
+			-- Same ordering rule as load_todos: snapshot, then migrate.
+			snapshot_loaded()
 			-- Migrate existing todos to new format
 			M.migrate_todos()
 		else
 			M.todos = {}
+			snapshot_loaded()
 		end
 	else
 		M.todos = {}
+		snapshot_loaded()
 	end
 end
 
@@ -225,19 +393,26 @@ function M.load_todos()
 	M.current_save_path = config.options.save_path
 	M.current_context = "global"
 	update_priority_weights()
+	record_stat(M.current_save_path)
 	local file = io.open(M.current_save_path, "r")
 	if file then
 		local content = file:read("*all")
 		file:close()
 		if content and content ~= "" then
 			M.todos = vim.fn.json_decode(content)
+			-- Snapshot BEFORE migrating: migration ends in a save, and the
+			-- save must diff against the file as loaded — otherwise every
+			-- load would stamp every todo as freshly updated.
+			snapshot_loaded()
 			-- Migrate existing todos to new format
 			M.migrate_todos()
 		else
 			M.todos = {}
+			snapshot_loaded()
 		end
 	else
 		M.todos = {}
+		snapshot_loaded()
 	end
 end
 
@@ -256,6 +431,12 @@ function M.migrate_todos()
 		if todo.depth == nil then
 			todo.depth = 0
 		end
+
+		-- Sync contract: absent updated_at falls back to created_at (readers
+		-- must tolerate absence; the file is backfilled once here).
+		if not todo.updated_at then
+			todo.updated_at = todo.created_at
+		end
 	end
 	-- Save migrated data
 	save_todos()
@@ -270,8 +451,9 @@ function M.add_todo(text, priority_names)
 		text = text,
 		done = false,
 		in_progress = false,
-		category = text:match("#(%w+)") or "",
+		category = text:match("#([%w_%-/]+)") or "", -- PR #88 charset; keep in step with sync/merge.derive_category
 		created_at = os.time(),
+		updated_at = os.time(), -- bumped on every edit; sync reads it
 		priorities = priority_names,
 		estimated_hours = nil, -- Add estimated_hours field
 		notes = "",
@@ -305,8 +487,9 @@ function M.add_nested_todo(text, parent_index, priority_names)
 		text = text,
 		done = false,
 		in_progress = false,
-		category = text:match("#(%w+)") or "",
+		category = text:match("#([%w_%-/]+)") or "", -- PR #88 charset; keep in step with sync/merge.derive_category
 		created_at = os.time(),
+		updated_at = os.time(), -- bumped on every edit; sync reads it
 		priorities = priority_names,
 		estimated_hours = nil,
 		notes = "",

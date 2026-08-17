@@ -507,25 +507,37 @@ function M.build_title()
 	return chunks
 end
 
--- Builds the footer, adding an overdue summary in the modern style
+-- Builds the footer, adding an overdue summary in the modern style and a
+-- green indicator while the sync server is running (both styles)
 function M.build_footer()
+	local server_chunk = nil
+	if require("dooing.server").is_running() then
+		server_chunk = { "· ● server ", "DooingServerOn" }
+	end
+
 	if not config.modern_feature("progress") then
+		if server_chunk then
+			return { { " [?] for help ", "FloatFooter" }, server_chunk }
+		end
 		return " [?] for help "
 	end
 
 	local help_key = config.options.keymaps.toggle_help
 	local base = help_key and string.format(" [%s] for help ", help_key) or " "
 
+	local chunks = { { base, "DooingQuickDesc" } }
+
 	local modern = require("dooing.ui.modern")
 	local stats = modern.stats(state.todos, state.active_filter)
 	if stats.overdue > 0 then
-		return {
-			{ base, "DooingQuickDesc" },
-			{ string.format("· %d overdue ", stats.overdue), "DooingOverdue" },
-		}
+		table.insert(chunks, { string.format("· %d overdue ", stats.overdue), "DooingOverdue" })
 	end
 
-	return { { base, "DooingQuickDesc" } }
+	if server_chunk then
+		table.insert(chunks, server_chunk)
+	end
+
+	return chunks
 end
 
 -- Update window title without recreating the window

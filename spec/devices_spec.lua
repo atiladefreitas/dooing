@@ -1,0 +1,103 @@
+local devices = require("dooing.sync.devices")
+
+local tmp = vim.fn.tempname() .. "/devices.json"
+
+local function fresh()
+	devices.reset_for_tests()
+	devices._path_override = tmp
+	os.remove(tmp)
+end
+
+describe("devices pairing", function()
+	it("exchanges a pairing token for a device token", function()
+		fresh()
+		local token = devices.new_pairing_token()
+		local result, err = devices.pair(token, "atila-phone")
+		eq(err, nil)
+		truthy(result)
+		truthy(result.device_token)
+		eq(result.name, "atila-phone")
+		eq(#devices.devices(), 1)
+	end)
+
+	it("a pairing token is single-use", function()
+		fresh()
+		local token = devices.new_pairing_token()
+		truthy(devices.pair(token, "first"))
+		local again, err = devices.pair(token, "second")
+		eq(again, nil)
+		truthy(err)
+	end)
+
+	it("rejects an unknown token", function()
+		fresh()
+		local result, err = devices.pair("deadbeef", "x")
+		eq(result, nil)
+		truthy(err)
+	end)
+
+	it("expires a stale pairing token", function()
+		fresh()
+		local token = devices.new_pairing_token(1000)
+		local result = devices.pair(token, "late", 1000 + 601)
+		eq(result, nil)
+	end)
+
+	it("authorizes the bearer it issued", function()
+		fresh()
+		local result = devices.pair(devices.new_pairing_token(), "phone")
+		local device = devices.authorize("Bearer " .. result.device_token)
+		truthy(device)
+		eq(device.id, result.device_id)
+	end)
+
+	it("rejects a wrong bearer and junk headers", function()
+		fresh()
+		devices.pair(devices.new_pairing_token(), "phone")
+		eq(devices.authorize("Bearer wrong"), nil)
+		eq(devices.authorize("Basic dXNlcjpwYXNz"), nil)
+		eq(devices.authorize(nil), nil)
+	end)
+
+	it("stores only the hash, never the token", function()
+		fresh()
+		local result = devices.pair(devices.new_pairing_token(), "phone")
+		local file = io.open(tmp, "r")
+		local content = file:read("*a")
+		file:close()
+		falsy(content:find(result.device_token, 1, true), "bearer token found in the device file")
+		truthy(content:find(vim.fn.sha256(result.device_token), 1, true))
+	end)
+
+	it("writes the device file 0600", function()
+		fresh()
+		devices.pair(devices.new_pairing_token(), "phone")
+		local stat = vim.uv.fs_stat(tmp)
+		truthy(stat)
+		eq(bit.band(stat.mode, tonumber("777", 8)), tonumber("600", 8))
+	end)
+
+	it("does not resurrect pending tokens from disk", function()
+		fresh()
+		local token = devices.new_pairing_token()
+		devices.pair(devices.new_pairing_token(), "phone") -- forces a save with `token` still pending
+		devices.reset_for_tests() -- simulate a restart: reload from disk
+		devices._path_override = tmp
+		local result = devices.pair(token, "ghost")
+		eq(result, nil, "a pairing token survived a restart")
+	end)
+
+	it("reports whether any device is paired — the auto-server-start signal", function()
+		fresh()
+		falsy(devices.has_paired_devices())
+		devices.pair(devices.new_pairing_token(), "phone")
+		truthy(devices.has_paired_devices())
+	end)
+
+	it("revokes a device", function()
+		fresh()
+		local result = devices.pair(devices.new_pairing_token(), "phone")
+		truthy(devices.revoke(result.device_id))
+		eq(devices.authorize("Bearer " .. result.device_token), nil)
+	end)
+end)

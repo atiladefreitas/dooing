@@ -297,6 +297,55 @@ function M.setup(opts)
 			M.show_due_notification()
 		end, { desc = "Show Due Items Notification" })
 	end
+
+	-- Two-way sync with paired devices (docs/SYNC-PROTOCOL.md).
+	vim.api.nvim_create_user_command("DooingServe", function()
+		if require("dooing.server").start() then
+			vim.notify("Dooing: sync server running (open the share page to pair a device)", vim.log.levels.INFO)
+		end
+	end, { desc = "Start the Dooing sync server" })
+
+	vim.api.nvim_create_user_command("DooingServeStop", function()
+		require("dooing.server").stop()
+		vim.notify("Dooing: sync server stopped", vim.log.levels.INFO)
+	end, { desc = "Stop the Dooing sync server" })
+
+	vim.api.nvim_create_user_command("DooingSyncStatus", function()
+		require("dooing.sync.exchange").status()
+	end, { desc = "Show sync status: server, paired devices, conflicts" })
+
+	vim.api.nvim_create_user_command("DooingSyncReport", function()
+		require("dooing.sync.exchange").report()
+	end, { desc = "Show the sync conflict trail" })
+
+	vim.api.nvim_create_user_command("DooingSyncRestore", function(cmd)
+		require("dooing.sync.exchange").restore(cmd.args)
+	end, { nargs = 1, desc = "Restore a losing conflict version as a new todo" })
+
+	vim.api.nvim_create_user_command("DooingSyncRevoke", function(cmd)
+		require("dooing.sync.exchange").revoke(cmd.args)
+	end, {
+		nargs = "?",
+		complete = function()
+			return require("dooing.sync.exchange").revoke_candidates()
+		end,
+		desc = "Unpair a device (number from :DooingSyncStatus, id, or unique name)",
+	})
+
+	-- Persistent server. "auto" (the default) starts it only when a device
+	-- has been paired — pairing IS the opt-in — so a user who never scans
+	-- the QR runs no server, and one who has never needs to configure it.
+	local sync_opts = config.options.sync or {}
+	local server_opts = sync_opts.server or {}
+	if server_opts.autostart ~= false and server_opts.enabled ~= false then
+		vim.defer_fn(function()
+			local should_start = server_opts.enabled == true
+				or (server_opts.enabled == "auto" and require("dooing.sync.devices").has_paired_devices())
+			if should_start then
+				require("dooing.server").start()
+			end
+		end, 50)
+	end
 end
 
 -- Open global todo list

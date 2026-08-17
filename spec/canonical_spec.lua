@@ -1,0 +1,40 @@
+local canonical = require("dooing.sync.canonical")
+
+describe("canonical encoding", function()
+	it("sorts object keys", function()
+		eq(canonical.encode({ b = 1, a = 2 }), '{"a":2,"b":1}')
+	end)
+
+	it("drops null and absent equally — the wire's absent-not-null rule", function()
+		eq(canonical.encode({ a = 1, b = vim.NIL }), '{"a":1}')
+		truthy(canonical.equal({ a = 1 }, { a = 1, b = vim.NIL }))
+	end)
+
+	it("prints integers without a decimal point", function()
+		eq(canonical.encode(1755043200), "1755043200")
+		eq(canonical.encode(2.0), "2")
+	end)
+
+	it("prints short decimals the way JS String() does", function()
+		eq(canonical.encode(0.5), "0.5")
+		eq(canonical.encode(1.25), "1.25")
+	end)
+
+	it("escapes strings exactly like JSON.stringify", function()
+		eq(canonical.encode('a"b'), '"a\\"b"')
+		eq(canonical.encode("a\nb"), '"a\\nb"')
+		eq(canonical.encode("a\\b"), '"a\\\\b"')
+		eq(canonical.encode(string.char(1)), '"\\u0001"')
+	end)
+
+	it("keeps arrays ordered and distinguishes empty {} from []", function()
+		eq(canonical.encode({ 3, 1, 2 }), "[3,1,2]")
+		eq(canonical.encode(vim.json.decode("[]")), "[]")
+		eq(canonical.encode(vim.json.decode("{}")), "{}")
+	end)
+
+	it("encodes booleans and null", function()
+		eq(canonical.encode(true), "true")
+		eq(canonical.encode(vim.NIL), "null")
+	end)
+end)

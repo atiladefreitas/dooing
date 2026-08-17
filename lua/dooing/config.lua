@@ -112,6 +112,30 @@ M.defaults = {
 	},
 	save_path = vim.fn.stdpath("data") .. "/dooing_todos.json",
 	pretty_print_json = false,
+	-- The LAN share/sync server (see docs/SYNC-PROTOCOL.md). Started by the
+	-- share keymap as before; these settings shape how it behaves.
+	sync = {
+		server = {
+			-- Keep the server running for paired devices (two-way sync).
+			--   "auto"  start on setup IF a device has been paired (the QR
+			--           share flow still starts it on demand either way)
+			--   true    always start on setup
+			--   false   never start automatically; :DooingServe only
+			enabled = "auto",
+			autostart = true, -- start on setup when enabled resolves true
+			port = 7283,
+			bind = "0.0.0.0", -- "127.0.0.1" for tunnel-only setups
+			-- v1 compatibility: serve GET /todos and /blocks without a device
+			-- token, as older app builds expect. Deprecated; will default to
+			-- false one release after v2 pairing ships in the app. Browser
+			-- attacks are blocked regardless (Host/Origin guards, no CORS).
+			allow_v1 = true,
+		},
+		conflict = {
+			-- How many losing versions to keep for :DooingSyncRestore
+			trail_limit = 50,
+		},
+	},
 	per_project = {
 		enabled = true,
 		default_filename = "dooing.json",

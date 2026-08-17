@@ -15,6 +15,7 @@ function M.setup_highlights()
 	vim.api.nvim_set_hl(0, "DooingDone", { link = "Comment", default = true })
 	vim.api.nvim_set_hl(0, "DooingHelpText", { link = "Directory", default = true })
 	vim.api.nvim_set_hl(0, "DooingTimestamp", { link = "Comment", default = true })
+	vim.api.nvim_set_hl(0, "DooingServerOn", { link = "DiagnosticOk", default = true })
 
 	-- Groups used by the modern style. All are `default` links so a colorscheme
 	-- or the user can override any of them with their own `nvim_set_hl` call.

@@ -7,7 +7,7 @@ Dooing is a minimalist todo list manager for Neovim. It provides a floating wind
 - **Language:** Lua only (no Vimscript except the 4-line bootstrap in `plugin/dooing.vim`)
 - **Runtime:** Neovim ≥ 0.10.0 plugin, managed by [lazy.nvim](https://github.com/folke/lazy.nvim)
 - **Dependencies:** None (no luarocks, no build step, no external tools)
-- **Testing:** No test framework or CI — all testing is manual (check `:messages` for errors, visual inspection)
+- **Testing:** `scripts/test.sh` (or `nvim -l spec/run.lua`) runs `spec/*_spec.lua` under Neovim itself — same ~60-line runner as bloocky.nvim, no busted, no dependencies. `describe`/`it`/`eq`/`neq`/`truthy`/`falsy` are globals from `spec/run.lua`. UI code is still verified manually (check `:messages`, visual inspection)
 - **Linting/Formatting:** No `.luarc.json`, `.stylua.toml`, or `.editorconfig` — follow existing code style
 
 ## Architecture
@@ -18,7 +18,14 @@ lua/dooing/
 ├── init.lua               ← Entry point: setup(), user commands (:Dooing, :DooingLocal, :DooingDue), keymaps
 ├── config.lua             ← M.defaults + M.setup(opts) merges user config via vim.tbl_deep_extend
 ├── state.lua              ← Data layer: todo CRUD, persistence (JSON), sorting, filtering, undo, git detection
-├── server.lua             ← QR code share server (raw TCP via vim.loop) — self-contained, rarely touched
+├── server.lua             ← LAN share/sync server: QR pairing page, /version, authenticated data routes
+├── sync/
+│   ├── httpd.lua          ← Pure HTTP request framing + Host/Origin guards + response builders (spec-covered)
+│   ├── devices.lua        ← Paired devices: pairing tokens, hashed bearer tokens, 0600 atomic store
+│   ├── canonical.lua      ← Stable canonical serialization; null == absent. PARITY-CRITICAL with the app's canonical.ts
+│   ├── merge.lua          ← Three-way per-field-group todo merge — the REFERENCE implementation; the app's merge.ts is a port
+│   ├── store.lua          ← Sync sidecar (dooing_sync.json): per-device bases + revisions, conflict trail
+│   └── exchange.lua       ← One POST /v2/sync/todos exchange + :DooingSyncStatus/Report/Restore
 └── ui/
     ├── init.lua            ← UI coordinator: public API that delegates to sub-modules
     ├── constants.lua       ← Shared mutable state: win/buf IDs, namespace, highlight cache
@@ -71,6 +78,7 @@ Todos are stored as a **flat JSON array** in a single file (default: `vim.fn.std
 | `notes`            | `string`       | Scratchpad notes for this todo                     |
 | `parent_id`        | `string\|nil`  | ID of parent todo (nil = top-level)                |
 | `depth`            | `number`       | Nesting level (0 = top-level)                      |
+| `updated_at`       | `number\|nil`  | Unix timestamp of the last mutation. Optional for readers: absent falls back to `created_at`. Stamped automatically at save time (see gotcha below) |
 
 **Critical rule:** `state.lua` owns all data mutations. Always call `state.save_todos()` after modifying `state.todos`.
 
@@ -83,6 +91,7 @@ Todos are stored as a **flat JSON array** in a single file (default: `vim.fn.std
 - When adding a new config option: add default to `M.defaults`, access via `config.options.your_option`
 - **Window size (`window.dimensions`):** may be a table `{ width = <n>, height = <n> }` **or** a function returning such a table (evaluated on every window creation, so sizes can adapt to `vim.o.columns` / `vim.o.lines`). Never read `config.options.window.dimensions` directly — call `config.get_window_dimensions()`, which resolves the function form, accepts positional `{ <w>, <h> }` tables, floors/clamps to the editor size, and falls back to `{ width = 55, height = 20 }` on invalid values
 - The legacy `window.width` / `window.height` options are deprecated: `M.setup()` folds user-supplied values into `window.dimensions` (with a `vim.notify` warning) and removes the legacy keys from `config.options.window`
+- **LAN server (`sync.server`):** `port` (7283), `bind`, and `allow_v1` (serve `/todos`/`/blocks` without a device token — deprecated compatibility for pre-pairing app builds). See `docs/SYNC-PROTOCOL.md`.
 - **UI style (`ui.style`):** `"classic"` (default) or `"modern"`. Never read `config.options.ui.*` directly — use `config.is_modern()`, `config.modern_feature("<name>")` (which returns false whenever the style is not modern, so classic can never be affected by a sub-toggle), and `config.ui_icon("<name>")`
 
 ## Code Conventions
@@ -138,8 +147,14 @@ Todos are stored as a **flat JSON array** in a single file (default: `vim.fn.std
 - **`---@diagnostic disable` lines** at the top of UI files suppress known warnings — don't remove them.
 - **`window.width` / `window.height` no longer exist at runtime** — they are migrated into `window.dimensions` during `config.setup()`. Any new code needing the window size must use `config.get_window_dimensions()` (consumers: `ui/window.lua`, `ui/rendering.lua`, `ui/due_notification.lua`).
 - **Git root detection** uses `io.popen("git rev-parse --show-toplevel")` — synchronous/blocking. Keep this in mind for performance.
-- **No automated tests** — verify changes manually with various configurations, empty/full todo lists, and nested task scenarios. Check `:messages` for Lua errors.
-- **`server.lua`** is a standalone QR-code share feature using raw TCP (`vim.loop`). It's isolated and rarely needs changes.
+- **UI has no automated tests** — verify UI changes manually with various configurations, empty/full todo lists, and nested task scenarios. Check `:messages` for Lua errors. Data/server logic IS spec-covered: run `scripts/test.sh` before and after touching `state.lua`, `server.lua` or `sync/`.
+- **`updated_at` is stamped at save time, not at mutation sites.** `save_todos()` diffs each todo against a snapshot of the last load/save (`updated_at` excluded from the diff) and stamps only what changed. This catches the UI layer's direct field writes without scattering bumps — but it means the snapshot ordering in the load functions is load-bearing: `snapshot_loaded()` must run **before** `migrate_todos()`, or every load re-stamps every todo.
+- **`server.lua` serves live data with security guards** — todos are read from disk per request (never a snapshot), every request passes Host/Origin checks (`sync/httpd.lua`), and there are deliberately **no CORS headers**. The protocol (QR payload, pairing, auth posture, `allow_v1` compatibility) is normative in `docs/SYNC-PROTOCOL.md` — change the code and that document together. Device bearer tokens are stored **hashed** in `stdpath("state")/dooing/devices.json` (0600); pairing tokens are single-use, 10-minute, memory-only.
+- **The todos file is written `0600`** via `vim.uv.fs_open` (it may be served to paired devices). The old `io.open` write is only a fallback.
+- **`state.save_todos()` merges, never clobbers.** If the file's mtime/size moved since we last touched it (another Neovim instance, or the sync server in one), the save three-way-merges in-memory edits with the disk's through `sync/merge.lua`, using the pre-stamp snapshot as base. Related: `state.replace_global_todos()` installs already-merged todos **without re-stamping** `updated_at` (the values are part of the device agreement) and is the only correct way for sync code to write the list; `state.reload_if_changed()` re-reads when the file moved (used by nothing UI-side — `open_global_todo` already reloads unconditionally).
+- **The sync store deep-copies bases on commit** (`store.commit_exchange`). The merge result's `base` shares tables with its `todos`; stored by reference, the next edit would mutate the "agreement" and change detection would go blind. Same bug class as bloocky's mutated-account-tables fix — don't undo it.
+- **Sync commands:** `:DooingServe` / `:DooingServeStop` (the server; auto-starts when a device is paired — `sync.server.enabled = "auto"` — or always when `true`), `:DooingSyncStatus`, `:DooingSyncReport` (reading it acknowledges, clearing markers), `:DooingSyncRestore <n>`, `:DooingSyncRevoke <number|id|unique name>` (unpairs and wipes that device's sync state; ambiguous names are refused, since pairing the same phone twice yields duplicates).
+- **`sync/merge.lua` is the reference implementation of the todo merge** — the app ports it, never the other way round. Its behaviour is pinned by `spec/fixtures/merge/cases.json`, which the app runs verbatim from a vendored copy (with a drift check). Change the algorithm ⇒ change the corpus ⇒ both suites must pass. Semantics that are easy to get wrong: `base` decides *whether* something changed, `updated_at` only breaks ties (smaller device id wins exact ties); delete-vs-edit always resurrects; notes take a strict prefix/suffix superset silently; cycles promote the member with the oldest change; `category` is derived (shared charset `[A-Za-z0-9_/-]`, from PR #88) and `depth` recomputed — neither is ever merged.
 - **Per-project todos** store a separate JSON file in the git root (default `dooing.json`), loaded/saved through the same `state.lua` machinery with `state.load_todos_from_path()`.
 
 ## Git & Contribution Workflow

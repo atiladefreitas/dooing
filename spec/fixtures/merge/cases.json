@@ -1,0 +1,375 @@
+[
+  {
+    "name": "01 empty",
+    "description": "Nothing anywhere yields nothing.",
+    "input": {
+      "base": {},
+      "local": { "device": "server", "todos": [], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [], "tombstones": [] }
+    },
+    "expected": { "todos": [], "tombstones": [], "conflicts": [] }
+  },
+  {
+    "name": "02 create local",
+    "description": "A todo created locally since the last agreement survives untouched (pass-through: category is NOT re-derived, depth is recomputed).",
+    "input": {
+      "base": {},
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "alpha #work", "category": "work", "created_at": 100, "updated_at": 100 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "alpha #work", "category": "work", "created_at": 100, "updated_at": 100, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "03 create remote",
+    "description": "Symmetric to 02: a remote-created todo is adopted.",
+    "input": {
+      "base": {},
+      "local": { "device": "server", "todos": [], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "b1", "text": "beta", "category": "", "created_at": 200, "updated_at": 200 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "b1", "text": "beta", "category": "", "created_at": 200, "updated_at": 200, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "04 create both distinct",
+    "description": "Independent creations on both sides both survive.",
+    "input": {
+      "base": {},
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "from nvim", "created_at": 100, "updated_at": 100 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "b1", "text": "from phone", "created_at": 200, "updated_at": 200 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "from nvim", "created_at": 100, "updated_at": 100, "depth": 0 },
+        { "id": "b1", "text": "from phone", "created_at": 200, "updated_at": 200, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "05 same id created identical",
+    "description": "The same id created identically on both sides converges without conflict (category derived; no tag means empty string).",
+    "input": {
+      "base": {},
+      "local": { "device": "server", "todos": [
+        { "id": "x1", "text": "same", "created_at": 100, "updated_at": 100 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "x1", "text": "same", "created_at": 100, "updated_at": 100 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "x1", "text": "same", "category": "", "created_at": 100, "updated_at": 100, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "06 same id created different",
+    "description": "Same id created differently on both sides: every group is changed-on-both; the differing one conflicts and the newer side wins. created_at is the earlier of the two.",
+    "input": {
+      "base": {},
+      "local": { "device": "server", "todos": [
+        { "id": "x1", "text": "alpha", "created_at": 100, "updated_at": 200 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "x1", "text": "beta", "created_at": 150, "updated_at": 100 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "x1", "text": "alpha", "category": "", "created_at": 100, "updated_at": 200, "depth": 0 }
+      ],
+      "tombstones": [],
+      "conflicts": [ { "id": "x1", "kind": "edit-vs-edit", "group": "text", "winner": "local" } ]
+    }
+  },
+  {
+    "name": "07 edit one side",
+    "description": "An edit on one side is simply taken; created_at comes from base.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "old", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "new", "category": "", "created_at": 50, "updated_at": 200 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "old", "category": "", "created_at": 50, "updated_at": 100 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "new", "category": "", "created_at": 50, "updated_at": 200, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "08 complementary edits",
+    "description": "The headline case: done on the phone, due date in Neovim - BOTH survive. Whole-record last-write-wins would destroy one.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "task", "done": false, "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "task", "done": false, "due_at": 999, "category": "", "created_at": 50, "updated_at": 250 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "task", "done": true, "completed_at": 300, "category": "", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "task", "done": true, "completed_at": 300, "due_at": 999, "category": "", "created_at": 50, "updated_at": 300, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "09 both changed equal",
+    "description": "Both sides made the same edit: agreement, not a conflict.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "x", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "y", "category": "", "created_at": 50, "updated_at": 200 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "y", "category": "", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "y", "category": "", "created_at": 50, "updated_at": 300, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "10 text conflict, category derived",
+    "description": "A real text conflict: newer wins, and category is re-derived from the winning text with the PR #88 charset (dashes included).",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "#old thing", "category": "old", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "#foo now", "category": "foo", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "#bar-baz now", "category": "bar", "created_at": 50, "updated_at": 400 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "#bar-baz now", "category": "bar-baz", "created_at": 50, "updated_at": 400, "depth": 0 }
+      ],
+      "tombstones": [],
+      "conflicts": [ { "id": "a1", "kind": "edit-vs-edit", "group": "text", "winner": "remote" } ]
+    }
+  },
+  {
+    "name": "11 tie broken by device id",
+    "description": "Identical updated_at on both sides: the lexicographically smaller device id wins. Deterministic, or the two sides ping-pong forever.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "x", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "aaa", "todos": [
+        { "id": "a1", "text": "left", "category": "", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] },
+      "remote": { "device": "bbb", "todos": [
+        { "id": "a1", "text": "right", "category": "", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "left", "category": "", "created_at": 50, "updated_at": 300, "depth": 0 }
+      ],
+      "tombstones": [],
+      "conflicts": [ { "id": "a1", "kind": "edit-vs-edit", "group": "text", "winner": "local" } ]
+    }
+  },
+  {
+    "name": "12 delete propagates",
+    "description": "Deleted on one side, untouched on the other: the delete propagates, with the tombstone carrying deleted_at.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "t", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [], "tombstones": [ { "id": "a1", "deleted_at": 500 } ] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "t", "category": "", "created_at": 50, "updated_at": 100 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [],
+      "tombstones": [ { "id": "a1", "deleted_at": 500 } ],
+      "conflicts": []
+    }
+  },
+  {
+    "name": "13 delete vs edit resurrects",
+    "description": "Deleted here, edited there: the edit wins and the todo is resurrected. A deletion is cheap to repeat; a lost edit is not recoverable.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "old", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [], "tombstones": [ { "id": "a1", "deleted_at": 500 } ] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "edited", "category": "", "created_at": 50, "updated_at": 600 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "edited", "category": "", "created_at": 50, "updated_at": 600, "depth": 0 }
+      ],
+      "tombstones": [],
+      "conflicts": [ { "id": "a1", "kind": "delete-vs-edit", "winner": "remote" } ]
+    }
+  },
+  {
+    "name": "14 both deleted",
+    "description": "Deleted on both sides: agreement, tombstone dropped.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "t", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [], "tombstones": [ { "id": "a1", "deleted_at": 500 } ] },
+      "remote": { "device": "phone", "todos": [], "tombstones": [ { "id": "a1", "deleted_at": 600 } ] }
+    },
+    "expected": { "todos": [], "tombstones": [], "conflicts": [] }
+  },
+  {
+    "name": "15 notes superset",
+    "description": "Both changed notes, but one strictly extends the other: the longer text wins WITHOUT a conflict, even against a newer timestamp. Appending is what people do to a scratchpad.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "t", "notes": "a", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "t", "notes": "ab", "category": "", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "t", "notes": "abc", "category": "", "created_at": 50, "updated_at": 200 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "t", "notes": "abc", "category": "", "created_at": 50, "updated_at": 300, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "16 notes real conflict",
+    "description": "Notes diverged with no containment: a real conflict, newer wins, loser trailed (with its full text - asserted by the unit specs).",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "t", "notes": "a", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "t", "notes": "ax", "category": "", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "t", "notes": "ay", "category": "", "created_at": 50, "updated_at": 200 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "t", "notes": "ax", "category": "", "created_at": 50, "updated_at": 300, "depth": 0 }
+      ],
+      "tombstones": [],
+      "conflicts": [ { "id": "a1", "kind": "edit-vs-edit", "group": "notes", "winner": "local" } ]
+    }
+  },
+  {
+    "name": "17 reparent one side",
+    "description": "One side moved a child to top level: placement follows it and depth is recomputed for everyone.",
+    "input": {
+      "base": {
+        "p1": { "id": "p1", "text": "parent", "category": "", "created_at": 10, "updated_at": 10 },
+        "c1": { "id": "c1", "text": "child", "parent_id": "p1", "depth": 1, "category": "", "created_at": 20, "updated_at": 20 }
+      },
+      "local": { "device": "server", "todos": [
+        { "id": "p1", "text": "parent", "category": "", "created_at": 10, "updated_at": 10 },
+        { "id": "c1", "text": "child", "category": "", "created_at": 20, "updated_at": 400 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "p1", "text": "parent", "category": "", "created_at": 10, "updated_at": 10 },
+        { "id": "c1", "text": "child", "parent_id": "p1", "depth": 1, "category": "", "created_at": 20, "updated_at": 20 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "c1", "text": "child", "category": "", "created_at": 20, "updated_at": 400, "depth": 0 },
+        { "id": "p1", "text": "parent", "category": "", "created_at": 10, "updated_at": 10, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  },
+  {
+    "name": "18 reparent cycle",
+    "description": "A under B from one side, B under A from the other: a cycle the tree must refuse. The member with the OLDER change is promoted to top level and reported.",
+    "input": {
+      "base": {
+        "a1": { "id": "a1", "text": "A", "category": "", "created_at": 10, "updated_at": 100 },
+        "b1": { "id": "b1", "text": "B", "category": "", "created_at": 10, "updated_at": 100 }
+      },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "A", "parent_id": "b1", "category": "", "created_at": 10, "updated_at": 300 },
+        { "id": "b1", "text": "B", "category": "", "created_at": 10, "updated_at": 100 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "A", "category": "", "created_at": 10, "updated_at": 100 },
+        { "id": "b1", "text": "B", "parent_id": "a1", "category": "", "created_at": 10, "updated_at": 200 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "A", "parent_id": "b1", "category": "", "created_at": 10, "updated_at": 300, "depth": 1 },
+        { "id": "b1", "text": "B", "category": "", "created_at": 10, "updated_at": 200, "depth": 0 }
+      ],
+      "tombstones": [],
+      "conflicts": [ { "id": "b1", "kind": "cycle", "group": "placement" } ]
+    }
+  },
+  {
+    "name": "19 priorities conflict",
+    "description": "Priorities changed differently on both sides (one replaced, one removed): a conflict, newer wins.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "t", "priorities": ["important"], "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "t", "priorities": ["urgent"], "category": "", "created_at": 50, "updated_at": 300 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "t", "category": "", "created_at": 50, "updated_at": 200 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "t", "priorities": ["urgent"], "category": "", "created_at": 50, "updated_at": 300, "depth": 0 }
+      ],
+      "tombstones": [],
+      "conflicts": [ { "id": "a1", "kind": "edit-vs-edit", "group": "priorities", "winner": "local" } ]
+    }
+  },
+  {
+    "name": "20 null vs absent",
+    "description": "JSON null and an absent key are the same fact on this wire (Lua's encoder omits nil). A remote null where base has absence is NOT a change.",
+    "input": {
+      "base": { "a1": { "id": "a1", "text": "t", "category": "", "created_at": 50, "updated_at": 100 } },
+      "local": { "device": "server", "todos": [
+        { "id": "a1", "text": "t", "category": "", "created_at": 50, "updated_at": 100 }
+      ], "tombstones": [] },
+      "remote": { "device": "phone", "todos": [
+        { "id": "a1", "text": "t", "due_at": null, "completed_at": null, "parent_id": null, "category": "", "created_at": 50, "updated_at": 100 }
+      ], "tombstones": [] }
+    },
+    "expected": {
+      "todos": [
+        { "id": "a1", "text": "t", "category": "", "created_at": 50, "updated_at": 100, "depth": 0 }
+      ],
+      "tombstones": [], "conflicts": []
+    }
+  }
+]
