@@ -4,6 +4,7 @@ local ui = require("dooing.ui")
 local state = require("dooing.state")
 
 function M.setup(opts)
+	M.did_setup = true
 	config.setup(opts)
 	state.load_todos()
 
@@ -454,6 +455,16 @@ end
 function M.show_due_notification()
 	local due_notification = require("dooing.ui.due_notification")
 	due_notification.show_due_notification()
+end
+
+---Bootstrap entry point called from `plugin/dooing.vim`. It must never clobber
+---a configuration the user already installed: with `vim.pack.add()` the
+---plugin's `plugin/` files are sourced *after* 'init.lua' (`load` defaults to
+---false while init.lua is sourcing), so this runs second there.
+function M.bootstrap()
+	if not M.did_setup then
+		M.setup()
+	end
 end
 
 return M
