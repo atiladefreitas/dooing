@@ -431,7 +431,11 @@ function M.create_window()
 		})
 	end
 
-	vim.api.nvim_win_set_option(constants.win_id, "wrap", true)
+	-- The modern style fits every line to the window, so soft wrapping would only
+	-- ever hide a layout bug: a wrapped screen line is not a buffer line, so it
+	-- loses the priority marker and the tree guides, which live in the line's own
+	-- text. The classic style still relies on wrapping for its long rows.
+	vim.api.nvim_win_set_option(constants.win_id, "wrap", not config.is_modern())
 	vim.api.nvim_win_set_option(constants.win_id, "linebreak", true)
 	vim.api.nvim_win_set_option(constants.win_id, "breakindent", true)
 	vim.api.nvim_win_set_option(constants.win_id, "breakindentopt", "shift:2")
