@@ -22,6 +22,9 @@ local DAY = 86400
 --------------------------------------------------------------------------------
 
 -- Accumulates text segments and their highlight ranges for a single line.
+---@class Line
+---@field text string
+---@field spans table[] list of { start_col, end_col, hl_group }, byte ranges
 local Line = {}
 Line.__index = Line
 
@@ -296,6 +299,89 @@ local function split_tags(text)
 	return segments
 end
 
+---Truncates `text` to `available` display columns, marking the cut with an
+---ellipsis.
+---
+---Counts columns rather than characters: a wide character (CJK, emoji) is a
+---single character but two columns, so a character-based cut can still leave the
+---line wider than the window.
+---@return string
+local function truncate_to_width(text, available)
+	if vim.fn.strdisplaywidth(text) <= available then
+		return text
+	end
+	if available < 2 then
+		return "…"
+	end
+
+	local kept, width = {}, 0
+	for _, char in ipairs(vim.fn.split(text, "\\zs")) do
+		local char_width = math.max(vim.fn.strdisplaywidth(char), 1)
+		if width + char_width > available - 1 then
+			break
+		end
+		table.insert(kept, char)
+		width = width + char_width
+	end
+
+	return table.concat(kept) .. "…"
+end
+
+---Wraps `text` into chunks of at most `available` display columns.
+---
+---Breaks between words, so neither a word nor a tag is ever split, and falls
+---back to a hard split for a single token too wide for a line of its own. Runs
+---of whitespace collapse into one space, which can only affect text that wraps:
+---anything already fitting the width is returned untouched.
+---@return string[] chunks always at least one
+local function wrap_to_width(text, available)
+	if available < 1 or vim.fn.strdisplaywidth(text) <= available then
+		return { text }
+	end
+
+	local chunks = {}
+	local current, width = "", 0
+
+	local function flush()
+		if width > 0 then
+			table.insert(chunks, current)
+			current, width = "", 0
+		end
+	end
+
+	for token in text:gmatch("%S+") do
+		local token_width = vim.fn.strdisplaywidth(token)
+		if width > 0 and width + 1 + token_width > available then
+			flush()
+		end
+
+		if token_width > available then
+			-- Wider than a whole line on its own, so break it wherever it lands
+			for _, char in ipairs(vim.fn.split(token, "\\zs")) do
+				local char_width = math.max(vim.fn.strdisplaywidth(char), 1)
+				if width + char_width > available then
+					flush()
+				end
+				current = current .. char
+				width = width + char_width
+			end
+		else
+			if width > 0 then
+				current = current .. " "
+				width = width + 1
+			end
+			current = current .. token
+			width = width + token_width
+		end
+	end
+	flush()
+
+	if #chunks == 0 then
+		table.insert(chunks, "")
+	end
+	return chunks
+end
+
 ---First non-blank line of a todo's notes, truncated to `available` columns
 ---@return string|nil
 local function note_summary(todo, available)
@@ -315,11 +401,7 @@ local function note_summary(todo, available)
 		return nil
 	end
 
-	if vim.fn.strdisplaywidth(first) > available then
-		-- strcharpart keeps multibyte characters intact
-		first = vim.fn.strcharpart(first, 0, available - 1) .. "…"
-	end
-	return first
+	return truncate_to_width(first, available)
 end
 
 ---Writes the priority marker column, the only part that carries the priority
@@ -410,16 +492,41 @@ local function render_row(todo, opts)
 	-- Column the todo text starts at, so a note preview can line up under it
 	local text_col = line:width()
 
-	-- Text, with tags highlighted as their own segments
-	local text_hl = todo.done and "DooingDone" or "DooingText"
-	for _, segment in ipairs(split_tags((todo.text:gsub("\n", " ")))) do
-		line:add(segment.text, segment.is_tag and "DooingTag" or text_hl)
+	-- Text, wrapped over as many lines as it needs so that no line overflows the
+	-- window. Soft wrapping cannot do this job: a wrapped screen line is not a
+	-- buffer line, so it carries neither the gutter nor any highlight.
+	local available = opts.width - text_col - 2
+	local text = (todo.text:gsub("\n", " "))
+	local chunks
+	if available < 8 then
+		-- Too narrow to wrap into anything readable, so mark the cut instead
+		chunks = { truncate_to_width(text, math.max(available, 1)) }
+	else
+		chunks = wrap_to_width(text, available)
 	end
+
+	-- Tags are highlighted as their own segments, by structure rather than by
+	-- re-matching the finished line
+	local text_hl = todo.done and "DooingDone" or "DooingText"
+	local lines = { line }
+	for i, chunk in ipairs(chunks) do
+		local target = line
+		if i > 1 then
+			-- Continuation of the text: the row's gutter, then the text column
+			target = begin_continuation(todo, opts, gutter_col)
+			target:add(string.rep(" ", math.max(text_col - gutter_col, 0)))
+			table.insert(lines, target)
+		end
+		for _, segment in ipairs(split_tags(chunk)) do
+			target:add(segment.text, segment.is_tag and "DooingTag" or text_hl)
+		end
+	end
+	local last_text_line = lines[#lines]
 
 	-- Dimmed first line of the notes, indented to the todo text
 	local note_line
 	if opts.note_preview then
-		local summary = note_summary(todo, opts.width - text_col - 2)
+		local summary = note_summary(todo, available)
 		if summary then
 			note_line = begin_continuation(todo, opts, gutter_col)
 			note_line:add(string.rep(" ", math.max(text_col - gutter_col, 0)))
@@ -428,51 +535,48 @@ local function render_row(todo, opts)
 	end
 
 	local metadata = build_metadata(todo, opts.lang, opts.now)
-	if #metadata == 0 then
-		return note_line and { line, note_line } or { line }
-	end
-
-	-- Lay the metadata out on a throwaway line to measure it
-	local meta = Line.new()
-	for i, part in ipairs(metadata) do
-		if i > 1 then
-			meta:add("  ")
+	if #metadata > 0 then
+		-- Lay the metadata out on a throwaway line to measure it
+		local meta = Line.new()
+		for i, part in ipairs(metadata) do
+			if i > 1 then
+				meta:add("  ")
+			end
+			meta:add(part.text, part.hl_group)
 		end
-		meta:add(part.text, part.hl_group)
-	end
 
-	local gap = opts.width - line:width() - meta:width() - 2
-	if gap >= 2 then
-		-- Fits alongside the text: right-align it
-		line:add(string.rep(" ", gap))
-		for _, span in ipairs(meta.spans) do
-			table.insert(line.spans, {
-				start_col = span.start_col + #line.text,
-				end_col = span.end_col + #line.text,
-				hl_group = span.hl_group,
-			})
+		-- Appends the measured metadata, shifting its spans onto `target`
+		local function append_meta(target)
+			for _, span in ipairs(meta.spans) do
+				table.insert(target.spans, {
+					start_col = span.start_col + #target.text,
+					end_col = span.end_col + #target.text,
+					hl_group = span.hl_group,
+				})
+			end
+			target.text = target.text .. meta.text
 		end
-		line.text = line.text .. meta.text
-		return note_line and { line, note_line } or { line }
-	end
 
-	-- Does not fit: give the metadata its own right-aligned line
-	local continuation = begin_continuation(todo, opts, gutter_col)
-	local indent = math.max(opts.width - meta:width() - 2, gutter_col)
-	continuation:add(string.rep(" ", indent - gutter_col))
-	for _, span in ipairs(meta.spans) do
-		table.insert(continuation.spans, {
-			start_col = span.start_col + #continuation.text,
-			end_col = span.end_col + #continuation.text,
-			hl_group = span.hl_group,
-		})
+		local gap = opts.width - last_text_line:width() - meta:width() - 2
+		if gap >= 2 then
+			-- Fits beside the text: right-align it on the last line of the text
+			last_text_line:add(string.rep(" ", gap))
+			append_meta(last_text_line)
+		else
+			-- Does not fit: give the metadata its own right-aligned line
+			local continuation = begin_continuation(todo, opts, gutter_col)
+			local indent = math.max(opts.width - meta:width() - 2, gutter_col)
+			continuation:add(string.rep(" ", indent - gutter_col))
+			append_meta(continuation)
+			table.insert(lines, continuation)
+		end
 	end
-	continuation.text = continuation.text .. meta.text
 
 	if note_line then
-		return { line, continuation, note_line }
+		table.insert(lines, note_line)
 	end
-	return { line, continuation }
+
+	return lines
 end
 
 ---Builds a section heading: title, a rule filling the width, and a count
