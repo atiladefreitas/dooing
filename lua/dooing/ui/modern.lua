@@ -204,6 +204,28 @@ local function build_tree_prefix(depth, is_last, ancestor_continues)
 	return table.concat(segments)
 end
 
+---Builds the tree guides for the *continuation* lines of a row.
+---
+---A row can occupy several buffer lines (a right-aligned metadata line, a note
+---preview). Those lines sit inside the tree just like the row's own line, so they
+---repeat the ancestor columns and, in place of the connector, this row's own
+---continuation: `│` while the row still has siblings below it, blank when it is
+---the last one. That is exactly what the following line draws in that column, so
+---a multi-line row never interrupts a vertical run.
+---
+---Call this *after* recording the row in `ancestor_continues`, so the entry for
+---`depth` already describes the row itself.
+---@param depth number
+---@param ancestor_continues boolean[] whether the ancestor at each depth has more siblings
+---@return string
+local function build_tree_continuation(depth, ancestor_continues)
+	local segments = {}
+	for level = 1, depth do
+		table.insert(segments, ancestor_continues[level] and "│  " or "   ")
+	end
+	return table.concat(segments)
+end
+
 --------------------------------------------------------------------------------
 -- Sections
 --------------------------------------------------------------------------------
@@ -300,18 +322,10 @@ local function note_summary(todo, available)
 	return first
 end
 
----Renders one todo into its row of lines.
----
----Metadata is right-aligned on the same line when it fits, and moves to its own
----dimmed continuation line when the text would otherwise be squeezed. When the
----todo carries notes, the first line of them follows underneath, dimmed and
----aligned with the todo text.
----@return Line[] lines the first of which is the todo's primary line
-local function render_row(todo, opts)
-	local line = Line.new()
-	local formatting = config.options.formatting
-
-	-- Priority marker: the only part that carries the priority color
+---Writes the priority marker column, the only part that carries the priority
+---color. Every line of a row emits it, so a prioritised row reads as one
+---unbroken colored bar instead of one interrupted by its own extra lines.
+local function add_priority_column(line, todo, opts)
 	if opts.priority_bar then
 		local bar = config.ui_icon("priority_bar")
 		if todo.done or not todo.priorities or #todo.priorities == 0 then
@@ -323,12 +337,56 @@ local function render_row(todo, opts)
 	else
 		line:add("  ")
 	end
+end
+
+---Starts a line that continues a row, carrying the row's gutter: the priority
+---column plus the tree guides in their continuation form.
+---
+---The result is padded to `gutter_col` so the row's own line and every
+---continuation of it agree on where the content column begins, whatever the
+---guides happen to occupy.
+---@param gutter_col number display width of the row's gutter
+---@return Line
+local function begin_continuation(todo, opts, gutter_col)
+	local line = Line.new()
+	add_priority_column(line, todo, opts)
+
+	local guides = opts.tree_continuation or ""
+	if guides ~= "" then
+		line:add(guides, "DooingTreeGuide")
+	end
+
+	local missing = gutter_col - line:width()
+	if missing > 0 then
+		line:add(string.rep(" ", missing))
+	end
+
+	return line
+end
+
+---Renders one todo into its row of lines.
+---
+---Metadata is right-aligned on the same line when it fits, and moves to its own
+---dimmed continuation line when the text would otherwise be squeezed. When the
+---todo carries notes, the first line of them follows underneath, dimmed and
+---aligned with the todo text. Every one of those extra lines repeats the row's
+---gutter, so neither the priority bar nor a tree guide is left with a gap.
+---@return Line[] lines the first of which is the todo's primary line
+local function render_row(todo, opts)
+	local line = Line.new()
+	local formatting = config.options.formatting
+
+	-- Priority marker
+	add_priority_column(line, todo, opts)
 
 	-- Tree guides
 	if opts.tree_prefix ~= "" then
 		line:add(opts.tree_prefix, "DooingTreeGuide")
 		line:add(" ")
 	end
+
+	-- Columns the gutter occupies; every continuation line of this row repeats it
+	local gutter_col = line:width()
 
 	-- Status icon
 	local icon
@@ -363,8 +421,8 @@ local function render_row(todo, opts)
 	if opts.note_preview then
 		local summary = note_summary(todo, opts.width - text_col - 2)
 		if summary then
-			note_line = Line.new()
-			note_line:add(string.rep(" ", text_col))
+			note_line = begin_continuation(todo, opts, gutter_col)
+			note_line:add(string.rep(" ", math.max(text_col - gutter_col, 0)))
 			note_line:add(summary, "DooingMeta")
 		end
 	end
@@ -399,9 +457,9 @@ local function render_row(todo, opts)
 	end
 
 	-- Does not fit: give the metadata its own right-aligned line
-	local continuation = Line.new()
-	local indent = math.max(opts.width - meta:width() - 2, 2)
-	continuation:add(string.rep(" ", indent))
+	local continuation = begin_continuation(todo, opts, gutter_col)
+	local indent = math.max(opts.width - meta:width() - 2, gutter_col)
+	continuation:add(string.rep(" ", indent - gutter_col))
 	for _, span in ipairs(meta.spans) do
 		table.insert(continuation.spans, {
 			start_col = span.start_col + #continuation.text,
@@ -521,14 +579,22 @@ function M.build(todos, active_filter)
 		local last = is_last[visible_index]
 
 		local tree_prefix = ""
+		-- Guides repeated on the row's continuation lines
+		local tree_continuation = ""
 		if use_tree then
 			tree_prefix = build_tree_prefix(depth, last, ancestor_continues)
 			ancestor_continues[depth] = not last
+			tree_continuation = build_tree_continuation(depth, ancestor_continues)
 		elseif depth > 0 then
 			tree_prefix = string.rep(" ", depth * indent_size)
+			-- Plain indentation has no guides to continue
+			tree_continuation = tree_prefix
 		end
 
-		local opts = vim.tbl_extend("force", opts_base, { tree_prefix = tree_prefix })
+		local opts = vim.tbl_extend("force", opts_base, {
+			tree_prefix = tree_prefix,
+			tree_continuation = tree_continuation,
+		})
 		local row_lines = render_row(todo, opts)
 
 		-- A todo with children opens a fold on its own line, so collapsing it
