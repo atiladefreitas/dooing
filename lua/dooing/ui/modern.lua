@@ -207,24 +207,28 @@ local function build_tree_prefix(depth, is_last, ancestor_continues)
 	return table.concat(segments)
 end
 
----Builds the tree guides for the *continuation* lines of a row.
+---Builds the tree guides for the *continuation* lines of a row (wrapped text, a
+---metadata line, a note preview).
 ---
----A row can occupy several buffer lines (a right-aligned metadata line, a note
----preview). Those lines sit inside the tree just like the row's own line, so they
----repeat the ancestor columns and, in place of the connector, this row's own
----continuation: `│` while the row still has siblings below it, blank when it is
----the last one. That is exactly what the following line draws in that column, so
----a multi-line row never interrupts a vertical run.
+---Such a line repeats the ancestor columns plus the row's own sibling column,
+---and, when the row has children, the child column too — the next line draws a
+---connector in one of those, so a multi-line row never interrupts a vertical
+---run. Its last column is left unpadded, like the connector in
+---`build_tree_prefix`.
 ---
----Call this *after* recording the row in `ancestor_continues`, so the entry for
----`depth` already describes the row itself.
+---Call *after* recording the row in `ancestor_continues`, so the entry for
+---`depth` describes the row itself.
 ---@param depth number
 ---@param ancestor_continues boolean[] whether the ancestor at each depth has more siblings
+---@param has_children boolean whether this row's first child follows it
 ---@return string
-local function build_tree_continuation(depth, ancestor_continues)
+local function build_tree_continuation(depth, ancestor_continues, has_children)
 	local segments = {}
 	for level = 1, depth do
 		table.insert(segments, ancestor_continues[level] and "│  " or "   ")
+	end
+	if has_children then
+		table.insert(segments, "│")
 	end
 	return table.concat(segments)
 end
@@ -424,12 +428,13 @@ end
 ---Starts a line that continues a row, carrying the row's gutter: the priority
 ---column plus the tree guides in their continuation form.
 ---
----The result is padded to `gutter_col` so the row's own line and every
----continuation of it agree on where the content column begins, whatever the
----guides happen to occupy.
----@param gutter_col number display width of the row's gutter
+---The result is padded to `content_col`, so the row's own line and every
+---continuation of it agree on where the content begins, whatever the guides
+---happen to occupy — a row that opens a subtree draws a wider guide than its
+---own prefix.
+---@param content_col number column the continuation's content starts at
 ---@return Line
-local function begin_continuation(todo, opts, gutter_col)
+local function begin_continuation(todo, opts, content_col)
 	local line = Line.new()
 	add_priority_column(line, todo, opts)
 
@@ -438,7 +443,7 @@ local function begin_continuation(todo, opts, gutter_col)
 		line:add(guides, "DooingTreeGuide")
 	end
 
-	local missing = gutter_col - line:width()
+	local missing = content_col - line:width()
 	if missing > 0 then
 		line:add(string.rep(" ", missing))
 	end
@@ -513,8 +518,7 @@ local function render_row(todo, opts)
 		local target = line
 		if i > 1 then
 			-- Continuation of the text: the row's gutter, then the text column
-			target = begin_continuation(todo, opts, gutter_col)
-			target:add(string.rep(" ", math.max(text_col - gutter_col, 0)))
+			target = begin_continuation(todo, opts, text_col)
 			table.insert(lines, target)
 		end
 		for _, segment in ipairs(split_tags(chunk)) do
@@ -528,8 +532,7 @@ local function render_row(todo, opts)
 	if opts.note_preview then
 		local summary = note_summary(todo, available)
 		if summary then
-			note_line = begin_continuation(todo, opts, gutter_col)
-			note_line:add(string.rep(" ", math.max(text_col - gutter_col, 0)))
+			note_line = begin_continuation(todo, opts, text_col)
 			note_line:add(summary, "DooingMeta")
 		end
 	end
@@ -564,9 +567,8 @@ local function render_row(todo, opts)
 			append_meta(last_text_line)
 		else
 			-- Does not fit: give the metadata its own right-aligned line
-			local continuation = begin_continuation(todo, opts, gutter_col)
 			local indent = math.max(opts.width - meta:width() - 2, gutter_col)
-			continuation:add(string.rep(" ", indent - gutter_col))
+			local continuation = begin_continuation(todo, opts, indent)
 			append_meta(continuation)
 			table.insert(lines, continuation)
 		end
@@ -681,6 +683,10 @@ function M.build(todos, active_filter)
 		local todo = entry.todo
 		local depth = todo.depth or 0
 		local last = is_last[visible_index]
+		-- A todo with children opens a fold on its own line, so collapsing it
+		-- keeps the parent visible and hides only its own subtree. Its guide
+		-- column also has to start above its first child.
+		local parent = has_children[visible_index]
 
 		local tree_prefix = ""
 		-- Guides repeated on the row's continuation lines
@@ -688,7 +694,7 @@ function M.build(todos, active_filter)
 		if use_tree then
 			tree_prefix = build_tree_prefix(depth, last, ancestor_continues)
 			ancestor_continues[depth] = not last
-			tree_continuation = build_tree_continuation(depth, ancestor_continues)
+			tree_continuation = build_tree_continuation(depth, ancestor_continues, parent)
 		elseif depth > 0 then
 			tree_prefix = string.rep(" ", depth * indent_size)
 			-- Plain indentation has no guides to continue
@@ -701,9 +707,6 @@ function M.build(todos, active_filter)
 		})
 		local row_lines = render_row(todo, opts)
 
-		-- A todo with children opens a fold on its own line, so collapsing it
-		-- keeps the parent visible and hides only its own subtree.
-		local parent = has_children[visible_index]
 		local level = parent and depth + 1 or depth
 
 		for i, row_line in ipairs(row_lines) do
